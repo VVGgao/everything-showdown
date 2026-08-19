@@ -43,8 +43,8 @@
 ## 技术实现
 
 - React 19 + TypeScript
-- vinext / Vite
-- Cloudflare Workers 兼容构建
+- Next.js 16 App Router
+- Vercel 生产部署
 - 原生 HTML Drag and Drop，并提供手机端下拉选择作为备用操作
 - `localStorage` 保存设备本地进度
 - Node.js 内置测试运行器覆盖抽签、赛制、曲库分组和服务端渲染
