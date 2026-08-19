@@ -69,6 +69,10 @@ test("server-renders the multi-category showdown platform", async () => {
   assert.equal([...html.matchAll(/class="rating-zone /g)].length, 6);
   assert.equal([...html.matchAll(/aria-label="将 [^"]+ 移动到"/g)].length, 10);
   assert.match(html, /换一批 10 首/);
+  assert.match(html, /aria-label="手机页面导航"/);
+  assert.equal([...html.matchAll(/class="mobile-nav-button/g)].length, 6);
+  assert.equal([...html.matchAll(/data-mobile-page="/g)].length, 6);
+  assert.match(html, /赛区[^]*对决[^]*签表[^]*锐评[^]*统计[^]*创建/);
 });
 
 test("source includes local progress, reset, and accessible live feedback", async () => {
@@ -83,6 +87,7 @@ test("source includes local progress, reset, and accessible live feedback", asyn
   assert.match(css, /:focus-visible/);
   assert.match(css, /\.song-card\.blue \.song-copy\s*\{[^}]*padding-left:\s*32px/s);
   assert.match(css, /\.song-card\.red \.song-copy\s*\{[^}]*padding-right:\s*32px/s);
+  assert.match(css, /@media \(max-width:\s*760px\)[^]*\.mobile-page:not\(\.active\)\s*\{[^}]*display:\s*none/s);
   await assert.rejects(access(new URL("../app/_sites-preview", import.meta.url)));
   await assert.rejects(access(new URL("../node_modules/react-loading-skeleton", root)));
 });

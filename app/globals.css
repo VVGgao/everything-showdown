@@ -926,11 +926,49 @@ button:focus-visible, a:focus-visible {
   outline-offset: 4px;
 }
 
+.mobile-page { display: contents; }
+.mobile-page-nav, .mobile-empty { display: none; }
+
 @keyframes pulse {
   50% { opacity: .4; transform: scale(.8); }
 }
 
 @media (max-width: 760px) {
+  .site-shell { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
+  .mobile-page { display: block; animation: mobile-page-in .2s ease both; }
+  .mobile-page:not(.active) { display: none; }
+  .mobile-page-nav {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 50;
+    min-height: 66px;
+    padding: 0 8px env(safe-area-inset-bottom);
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    border-top: 1px solid rgba(255,255,255,.18);
+    background: rgba(8,8,8,.96);
+    box-shadow: 0 -14px 38px rgba(0,0,0,.46);
+    backdrop-filter: blur(18px);
+  }
+  .mobile-nav-button {
+    position: relative;
+    min-width: 0;
+    padding: 9px 2px 8px;
+    color: #77736c;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    font: 700 10px/1 var(--font-label);
+  }
+  .mobile-nav-button::before { content: ""; position: absolute; top: 0; right: 8px; left: 8px; height: 2px; background: transparent; }
+  .mobile-nav-button.active { color: var(--gold); }
+  .mobile-nav-button.active::before { background: var(--gold); box-shadow: 0 0 12px var(--gold); }
+  .mobile-empty { width: min(100% - 28px, 1340px); min-height: calc(100vh - 150px); margin: 0 auto; padding: 90px 0; display: grid; align-content: center; text-align: center; }
+  .mobile-empty b { color: var(--gold); font: 700 11px/1 var(--font-label); letter-spacing: .08em; }
+  .mobile-empty h2 { margin: 15px auto 28px; max-width: 330px; font-family: var(--font-display); font-size: 40px; line-height: 1.15; }
+  .mobile-empty button { width: fit-content; margin: 0 auto; padding: 12px 16px; color: #090909; border: 0; background: var(--gold); font-weight: 750; }
   .topbar, .hero { width: min(100% - 28px, 1340px); }
   .topbar { height: 76px; }
   .nav-links { display: none; }
@@ -1008,6 +1046,11 @@ button:focus-visible, a:focus-visible {
   .custom-section { width: min(100% - 28px, 1340px); grid-template-columns: 1fr; gap: 36px; padding: 90px 0; }
   footer { padding: 50px 0; align-items: flex-end; }
   footer > div .brand-mark { display: none; }
+}
+
+@keyframes mobile-page-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @media (prefers-reduced-motion: reduce) {

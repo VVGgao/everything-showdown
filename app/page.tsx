@@ -21,6 +21,15 @@ const coverSrc = (competitionId: Competition["id"], entry: Entry) => entry.cover
 
 type MusicCompetitionId = "hiphop" | "kpop";
 type MusicPool = { id: string; name: string; label: string; entries: Entry[] };
+type MobilePageId = "leagues" | "battle" | "path" | "rating" | "stats" | "custom";
+const mobilePages: { id: MobilePageId; label: string }[] = [
+  { id: "leagues", label: "赛区" },
+  { id: "battle", label: "对决" },
+  { id: "path", label: "签表" },
+  { id: "rating", label: "锐评" },
+  { id: "stats", label: "统计" },
+  { id: "custom", label: "创建" },
+];
 const musicCatalog = musicCatalogData as Record<MusicCompetitionId, MusicPool[]>;
 const defaultMusicEntries = Object.fromEntries(
   (["hiphop", "kpop"] as MusicCompetitionId[]).map((id) => [
@@ -34,6 +43,7 @@ export default function Home() {
   const [winners, setWinners] = useState<string[]>([]);
   const [submittedChampion, setSubmittedChampion] = useState<string | null>(null);
   const [arena, setArena] = useState<{ id: Competition["id"]; entries: Entry[] }>({ id: "hiphop", entries: defaultMusicEntries.hiphop });
+  const [mobilePage, setMobilePage] = useState<MobilePageId>("leagues");
   const baseActive = competitions.find((item) => item.id === activeId) ?? competitions[0];
   const defaultEntries = activeId === "games" ? baseActive.entries : defaultMusicEntries[activeId];
   const active = { ...baseActive, entries: arena.id === activeId ? arena.entries : defaultEntries };
@@ -71,12 +81,19 @@ export default function Home() {
 
   function selectCompetition(id: Competition["id"]) {
     setActiveId(id);
-    requestAnimationFrame(() => document.querySelector("#battle")?.scrollIntoView({ behavior: "smooth" }));
+    setMobilePage("battle");
+    requestAnimationFrame(() => document.querySelector('[data-mobile-page="battle"]')?.scrollIntoView({ behavior: "smooth" }));
+  }
+
+  function openMobilePage(pageId: MobilePageId) {
+    setMobilePage(pageId);
+    requestAnimationFrame(() => document.querySelector(`[data-mobile-page="${pageId}"]`)?.scrollIntoView({ behavior: "auto" }));
   }
 
   function resetShowdown() {
     setWinners([]);
     setSubmittedChampion(null);
+    setMobilePage("battle");
     localStorage.removeItem(progressKey(activeId));
     localStorage.removeItem(championKey(activeId));
     document.querySelector("#battle")?.scrollIntoView({ behavior: "smooth" });
@@ -113,39 +130,42 @@ export default function Home() {
         <div className="live-chip"><i /> 3 个赛区开放中</div>
       </nav>
 
-      <section className="platform-hero" id="arena">
-        <p className="kicker">PICK A SIDE · CROWN YOUR CHAMPION</p>
-        <h1>万物皆可<br /><em>对决</em></h1>
-        <div className="platform-intro">
-          <p>音乐、游戏，以及所有你争论不休的选择。</p>
-          <span>向下选择赛区 ↓</span>
-        </div>
-      </section>
+      <div className={`mobile-page ${mobilePage === "leagues" ? "active" : ""}`} data-mobile-page="leagues">
+        <section className="platform-hero" id="arena">
+          <p className="kicker">PICK A SIDE · CROWN YOUR CHAMPION</p>
+          <h1>万物皆可<br /><em>对决</em></h1>
+          <div className="platform-intro">
+            <p>音乐、游戏，以及所有你争论不休的选择。</p>
+            <span>选择下方赛区开始 ↓</span>
+          </div>
+        </section>
 
-      <section className="league-section" id="leagues">
-        <div className="league-heading">
-          <span>OFFICIAL LEAGUES / 03</span>
-          <h2>选择你的赛场</h2>
-        </div>
-        <div className="league-grid">
-          {competitions.map((competition, index) => (
-            <button
-              type="button"
-              className={`league-card ${competition.theme} ${activeId === competition.id ? "active" : ""}`}
-              onClick={() => selectCompetition(competition.id)}
-              key={competition.id}
-            >
-              <span className="league-index">0{index + 1}</span>
-              <p>{competition.eyebrow}</p>
-              <h3>{competition.shortName}</h3>
-              <small>{competition.description}</small>
-              <b>进入赛区 ↗</b>
-            </button>
-          ))}
-        </div>
-      </section>
+        <section className="league-section" id="leagues">
+          <div className="league-heading">
+            <span>OFFICIAL LEAGUES / 03</span>
+            <h2>选择你的赛场</h2>
+          </div>
+          <div className="league-grid">
+            {competitions.map((competition, index) => (
+              <button
+                type="button"
+                className={`league-card ${competition.theme} ${activeId === competition.id ? "active" : ""}`}
+                onClick={() => selectCompetition(competition.id)}
+                key={competition.id}
+              >
+                <span className="league-index">0{index + 1}</span>
+                <p>{competition.eyebrow}</p>
+                <h3>{competition.shortName}</h3>
+                <small>{competition.description}</small>
+                <b>进入赛区 ↗</b>
+              </button>
+            ))}
+          </div>
+        </section>
+      </div>
 
-      <section className="hero" id="battle">
+      <div className={`mobile-page ${mobilePage === "battle" ? "active" : ""}`} data-mobile-page="battle">
+        <section className="hero" id="battle">
         <div className="competition-switcher" aria-label="切换官方赛区">
           {competitions.map((competition) => (
             <button
@@ -196,35 +216,59 @@ export default function Home() {
             </div>
           )}
         </div>
-      </section>
+        </section>
 
-      <section className="score-strip" aria-label="赛事摘要">
-        <div><b>{active.entries.length}</b><span>入围内容</span></div>
-        <div><b>{winners.length.toString().padStart(2, "0")}</b><span>已完成选择</span></div>
-        <div><b>01</b><span>最终冠军</span></div>
-      </section>
+        <section className="score-strip" aria-label="赛事摘要">
+          <div><b>{active.entries.length}</b><span>入围内容</span></div>
+          <div><b>{winners.length.toString().padStart(2, "0")}</b><span>已完成选择</span></div>
+          <div><b>01</b><span>最终冠军</span></div>
+        </section>
+      </div>
 
-      <Bracket active={active} winners={winners} />
+      <div className={`mobile-page ${mobilePage === "path" ? "active" : ""}`} data-mobile-page="path">
+        <Bracket active={active} winners={winners} />
+        {active.id !== "games" && <MusicRoster active={active} />}
+      </div>
 
-      {active.id !== "games" && <MusicRoster active={active} />}
+      <div className={`mobile-page ${mobilePage === "rating" ? "active" : ""}`} data-mobile-page="rating">
+        {active.id !== "games"
+          ? <SongRatingBoard active={active} key={`${active.id}:${active.entries.map((entry) => entry.id).join(".")}`} />
+          : <section className="mobile-empty"><b>锐评</b><h2>歌曲锐评仅在音乐赛区开放</h2><button type="button" onClick={() => openMobilePage("leagues")}>返回选择音乐赛区</button></section>}
+      </div>
 
-      {active.id !== "games" && <SongRatingBoard active={active} key={`${active.id}:${active.entries.map((entry) => entry.id).join(".")}`} />}
+      <div className={`mobile-page ${mobilePage === "stats" ? "active" : ""}`} data-mobile-page="stats">
+        <ChampionStats active={active} submittedChampion={submittedChampion} />
+      </div>
 
-      <ChampionStats active={active} submittedChampion={submittedChampion} />
+      <div className={`mobile-page ${mobilePage === "custom" ? "active" : ""}`} data-mobile-page="custom">
+        <section className="custom-section" id="custom">
+          <div className="custom-copy">
+            <p>BUILD YOUR OWN</p>
+            <h2>创建我的对决</h2>
+            <span>把朋友间争论不休的话题，变成一场真正的淘汰赛。自定义赛事只保存在你的浏览器，不参与官方统计。</span>
+          </div>
+          <CustomBuilder />
+        </section>
 
-      <section className="custom-section" id="custom">
-        <div className="custom-copy">
-          <p>BUILD YOUR OWN</p>
-          <h2>创建我的对决</h2>
-          <span>把朋友间争论不休的话题，变成一场真正的淘汰赛。自定义赛事只保存在你的浏览器，不参与官方统计。</span>
-        </div>
-        <CustomBuilder />
-      </section>
+        <footer>
+          <div><span className="brand-mark">决</span><p>SHOWDOWN ARENA · 本地 Demo<br />统计数字为模拟数据，不代表真实用户结果</p></div>
+          <button type="button" onClick={resetShowdown}>重置当前赛区 ↺</button>
+        </footer>
+      </div>
 
-      <footer>
-        <div><span className="brand-mark">决</span><p>SHOWDOWN ARENA · 本地 Demo<br />统计数字为模拟数据，不代表真实用户结果</p></div>
-        <button type="button" onClick={resetShowdown}>重置当前赛区 ↺</button>
-      </footer>
+      <nav className="mobile-page-nav" aria-label="手机页面导航">
+        {mobilePages.map((page) => (
+          <button
+            className={`mobile-nav-button ${mobilePage === page.id ? "active" : ""}`}
+            type="button"
+            aria-pressed={mobilePage === page.id}
+            onClick={() => openMobilePage(page.id)}
+            key={page.id}
+          >
+            <span>{page.label}</span>
+          </button>
+        ))}
+      </nav>
     </main>
   );
 }
