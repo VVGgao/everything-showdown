@@ -201,9 +201,9 @@ button, a { font: inherit; }
 .pool-options .pool-select[aria-pressed="true"] span { color: rgba(0,0,0,.58); }
 .pool-options .pool-select strong { align-self: end; font-family: var(--font-display); font-size: 17px; line-height: 1.2; }
 .pool-options .pool-select b { align-self: end; font: 650 10px/1 var(--font-data); white-space: nowrap; }
-.pool-options .pool-view { padding: 9px 16px; color: #8d8981; text-align: left; border: 0; border-top: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.025); font: 650 9px/1 var(--font-label); cursor: pointer; }
-.pool-options .pool-view:hover, .pool-options .pool-view[aria-pressed="true"] { color: var(--gold); background: rgba(231,188,100,.07); }
-.pool-catalog { border: 1px solid rgba(231,188,100,.28); border-top: 0; background: #0b0b0a; }
+.pool-options .pool-view { padding: 9px 16px; display: block; color: #8d8981; text-align: left; text-decoration: none; border: 0; border-top: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.025); font: 650 9px/1 var(--font-label); cursor: pointer; }
+.pool-options .pool-view:hover, .pool-options .pool-view[aria-current] { color: var(--gold); background: rgba(231,188,100,.07); }
+.pool-catalog { scroll-margin-top: 16px; border: 1px solid rgba(231,188,100,.28); border-top: 0; background: #0b0b0a; }
 .pool-catalog > summary { padding: 18px 20px; display: flex; justify-content: space-between; align-items: end; gap: 18px; cursor: pointer; border-bottom: 1px solid transparent; background: rgba(11,11,10,.96); list-style: none; }
 .pool-catalog[open] > summary { border-bottom-color: rgba(255,255,255,.14); }
 .pool-catalog > summary::-webkit-details-marker { display: none; }

@@ -5,15 +5,8 @@ import test from "node:test";
 const root = new URL("../", import.meta.url);
 
 async function render() {
-  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
-  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
-  const { default: worker } = await import(workerUrl.href);
-
-  return worker.fetch(
-    new Request("http://localhost/", { headers: { accept: "text/html" } }),
-    { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
-    { waitUntil() {}, passThroughOnException() {} },
-  );
+  const html = await readFile(new URL("../out/index.html", import.meta.url), "utf8");
+  return new Response(html, { headers: { "content-type": "text/html; charset=utf-8" } });
 }
 
 test("server-renders the multi-category showdown platform", async () => {
@@ -46,9 +39,11 @@ test("server-renders the multi-category showdown platform", async () => {
   assert.match(html, /从所选歌池抽取 64 首/);
   assert.match(html, /全赛区热门优先 64 首/);
   assert.match(html, /完整曲库/);
-  assert.match(html, /<details class="pool-catalog">/);
+  assert.match(html, /<details class="pool-catalog"[^>]*>/);
+  assert.match(html, /href="#pool-catalog"/);
+  assert.match(html, /id="pool-catalog"/);
   assert.match(html, /展开歌单/);
-  assert.doesNotMatch(html, /<details class="pool-catalog" open/);
+  assert.doesNotMatch(html, /<details class="pool-catalog"[^>]*\sopen(?:\s|>|=)/);
   assert.match(html, /<h3>SUP MUSIC<\/h3>/);
   assert.ok([...html.matchAll(/class="pool-track"/g)].length >= 32);
   assert.match(html, /创建我的对决/);

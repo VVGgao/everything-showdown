@@ -336,14 +336,14 @@ function MusicPoolSelector({ competitionId, onDraw }: { competitionId: MusicComp
               <strong>{pool.name}</strong>
               <b>{pool.entries.length} 首</b>
             </button>
-            <button
+            <a
               className="pool-view"
-              type="button"
-              aria-pressed={openPool.id === pool.id}
+              href="#pool-catalog"
+              aria-current={openPool.id === pool.id ? "location" : undefined}
               onClick={() => setOpenPoolId(pool.id)}
             >
               {openPool.id === pool.id ? "正在查看" : "查看歌单"} ↘
-            </button>
+            </a>
           </article>
         ))}
       </div>
@@ -368,7 +368,7 @@ function PoolTrackList({ competitionId, pool }: { competitionId: MusicCompetitio
     : [{ label: pool.name, entries: pool.entries }];
 
   return (
-    <details className="pool-catalog">
+    <details className="pool-catalog" id="pool-catalog">
       <summary>
         <div><span>完整曲库</span><h3>{pool.name}</h3></div>
         <p>{pool.name} · {pool.entries.length} 首</p>
