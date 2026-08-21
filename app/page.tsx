@@ -114,6 +114,10 @@ export default function Home() {
     requestAnimationFrame(() => document.querySelector("#battle")?.scrollIntoView({ behavior: "smooth" }));
   }
 
+  function scrollToBattleStage() {
+    requestAnimationFrame(() => document.querySelector("#battle-stage")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
+
   function resetShowdown() {
     setWinners([]);
     setSubmittedChampion(null);
@@ -130,7 +134,8 @@ export default function Home() {
     localStorage.setItem(bracketKey(activeId), JSON.stringify(entries.map((entry) => entry.id)));
     localStorage.removeItem(progressKey(activeId));
     localStorage.removeItem(championKey(activeId));
-    scrollToBattleOnDesktop();
+    openMobilePage("battle");
+    scrollToBattleStage();
   }
 
   const pair = !match.finished
@@ -217,7 +222,7 @@ export default function Home() {
           <span>{winners.length} / {totalMatches} 场已完成</span>
         </div>
 
-        <div className="battle-stage" aria-live="polite">
+        <div className={`battle-stage ${pair ? "has-pair" : "has-champion"}`} id="battle-stage" aria-live="polite">
           {pair && (
             <>
               <EntryCard competitionId={active.id} side="red" entry={pair[0]} onChoose={choose} />

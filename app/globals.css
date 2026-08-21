@@ -1004,12 +1004,60 @@ button:focus-visible, a:focus-visible {
   .round-line span:first-child { display: none; }
   .round-line { grid-template-columns: auto 1fr; }
   .battle-stage { grid-template-columns: 1fr; }
-  .song-card { min-height: 480px; padding: 25px 24px 28px; }
+  .battle-stage.has-pair {
+    height: calc(100svh - 82px);
+    min-height: 560px;
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+    scroll-margin-top: 12px;
+  }
+  .battle-stage.has-pair .song-card {
+    min-height: 0;
+    padding: 12px 14px;
+    display: grid;
+    grid-template-columns: 104px minmax(0, 1fr);
+    grid-template-rows: auto auto 1fr auto;
+    column-gap: 14px;
+  }
   .song-card.blue { border-top: 1px solid rgba(255,255,255,.2); }
   .song-card.red .song-copy, .song-card.blue .song-copy { padding: 0; }
-  .track-preview { grid-template-columns: 1fr auto; }
-  .track-preview > span { grid-column: 1 / -1; }
-  .versus { top: 50%; width: 70px; height: 70px; font-size: 28px; grid-template-columns: 1fr 1fr; }
+  .battle-stage.has-pair .card-topline { grid-column: 1 / -1; }
+  .battle-stage.has-pair .record {
+    grid-column: 1;
+    grid-row: 2 / span 2;
+    width: 104px;
+    margin: 12px 0 0;
+    align-self: start;
+    transform: rotate(-1deg);
+  }
+  .battle-stage.has-pair .song-card.blue .record { transform: rotate(1deg); }
+  .battle-stage.has-pair .song-copy {
+    grid-column: 2;
+    grid-row: 2;
+    min-width: 0;
+    margin-top: 12px;
+  }
+  .battle-stage.has-pair .song-copy p { margin-bottom: 3px; font-size: 11px; }
+  .battle-stage.has-pair .song-copy h2 { margin-bottom: 5px; font-size: clamp(23px, 7.4vw, 31px); line-height: 1; }
+  .battle-stage.has-pair .song-copy > span { font-size: 9px; }
+  .battle-stage.has-pair .track-preview {
+    grid-column: 2;
+    grid-row: 3;
+    margin-top: 8px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-content: start;
+    gap: 5px 8px;
+  }
+  .battle-stage.has-pair .track-preview > span { grid-column: 1 / -1; }
+  .battle-stage.has-pair .track-preview audio { grid-column: 1 / -1; height: 28px; }
+  .battle-stage.has-pair .song-card button {
+    grid-column: 1 / -1;
+    grid-row: 4;
+    margin-top: 10px;
+    padding: 11px 14px;
+  }
+  .battle-stage.has-pair .song-card button b { font-size: 15px; }
+  .versus { top: 50%; width: 54px; height: 38px; font-size: 20px; grid-template-columns: 1fr 1fr; box-shadow: -5px 0 var(--red), 5px 0 var(--blue), 0 0 26px rgba(255,255,255,.2); }
   .versus span:first-child, .versus span:last-child { transform: none; }
   .score-strip { width: min(100% - 28px, 1340px); grid-template-columns: 1fr; }
   .score-strip div { padding: 22px 8px; border-right: 0; border-bottom: 1px solid rgba(231,188,100,.2); }

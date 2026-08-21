@@ -22,6 +22,7 @@ test("server-renders the multi-category showdown platform", async () => {
   assert.match(html, /K-POP/);
   assert.match(html, /游戏对比/);
   assert.match(html, /选 TA 晋级/);
+  assert.match(html, /id="battle-stage"/);
   assert.match(html, /试听片段/);
   assert.match(html, /官方页面播放/);
   assert.match(html, /class="record"[^]*?<img[^>]+alt="[^"]+ 封面"/);
@@ -73,6 +74,7 @@ test("server-renders the multi-category showdown platform", async () => {
 test("source includes local progress, reset, and accessible live feedback", async () => {
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  const mobileCss = css.slice(css.indexOf("@media (max-width: 760px)"), css.indexOf("@keyframes mobile-page-in"));
 
   assert.match(page, /localStorage\.setItem/);
   assert.match(page, /重新开赛/);
@@ -83,6 +85,8 @@ test("source includes local progress, reset, and accessible live feedback", asyn
   assert.match(css, /\.song-card\.blue \.song-copy\s*\{[^}]*padding-left:\s*32px/s);
   assert.match(css, /\.song-card\.red \.song-copy\s*\{[^}]*padding-right:\s*32px/s);
   assert.match(css, /@media \(max-width:\s*760px\)[^]*\.mobile-page:not\(\.active\)\s*\{[^}]*display:\s*none/s);
+  assert.match(mobileCss, /\.battle-stage\.has-pair\s*\{[^}]*height:\s*calc\(100svh[^}]*grid-template-rows:\s*repeat\(2/s);
+  assert.match(page, /querySelector\("#battle-stage"\)\?\.scrollIntoView/);
   await assert.rejects(access(new URL("../app/_sites-preview", import.meta.url)));
   await assert.rejects(access(new URL("../node_modules/react-loading-skeleton", root)));
 });
