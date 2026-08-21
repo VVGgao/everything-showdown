@@ -74,6 +74,18 @@ test("server-renders the multi-category showdown platform", async () => {
   assert.match(html, /赛区[^]*对决[^]*签表[^]*锐评[^]*统计[^]*创建/);
 });
 
+test("production pages load Vercel Web Analytics", async () => {
+  const response = await render();
+  const html = await response.text();
+  const scriptPaths = [...html.matchAll(/<script[^>]+src="([^"]+\.js)"/g)]
+    .map((match) => match[1]);
+  const scripts = await Promise.all(
+    scriptPaths.map((path) => readFile(new URL(`../out${path}`, import.meta.url), "utf8")),
+  );
+
+  assert.match(scripts.join("\n"), /\/_vercel\/insights\/script\.js/);
+});
+
 test("source includes local progress, reset, and accessible live feedback", async () => {
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
