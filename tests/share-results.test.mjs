@@ -67,31 +67,3 @@ test("an unrated song prevents a rating result from being shared", async () => {
     /完成全部锐评/,
   );
 });
-
-test("a share poster capture always exports one 1080 by 1350 image", async () => {
-  const shareResults = await import("../app/share-results.js");
-
-  assert.deepEqual(shareResults.getShareImageCapture?.(540), {
-    width: 1080,
-    height: 1350,
-    scale: 2,
-    backgroundColor: "#080808",
-  });
-});
-
-test("a fractional capture is normalized to exact share-image pixel dimensions", async () => {
-  const shareResults = await import("../app/share-results.js");
-  const source = { width: 1080, height: 1349 };
-  const drawCalls = [];
-  const target = {
-    width: 0,
-    height: 0,
-    getContext: () => ({ drawImage: (...args) => drawCalls.push(args) }),
-  };
-
-  const normalized = shareResults.normalizeShareCanvas?.(source, () => target);
-
-  assert.equal(normalized?.width, 1080);
-  assert.equal(normalized?.height, 1350);
-  assert.deepEqual(drawCalls, [[source, 0, 0, 1080, 1350]]);
-});

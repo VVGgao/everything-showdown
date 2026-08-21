@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import html2canvas from "html2canvas";
 import QRCode from "qrcode";
 import { competitions, type Competition, type Entry } from "./competition-data";
 import musicCatalogData from "./music-catalog.json";
@@ -14,8 +13,6 @@ import {
   buildCenteredBracket,
   createBracketShareResult,
   createRatingShareResult,
-  getShareImageCapture,
-  normalizeShareCanvas,
   readShareResultFromUrl,
 } from "./share-results.js";
 import {
@@ -376,89 +373,14 @@ function ShareResultView({ result, onClose }: { result: ShareResult; onClose: ()
     : musicCatalog[competition.id].flatMap((pool) => pool.entries);
   const entriesById = new Map(availableEntries.map((entry) => [entry.id, entry]));
   const shareUrl = buildShareUrl(window.location.href, result);
-  const sharePosterRef = useRef<HTMLElement>(null);
   const [qrCode, setQrCode] = useState("");
-  const [shareStatus, setShareStatus] = useState("");
-  const [isCreatingImage, setIsCreatingImage] = useState(false);
 
   useEffect(() => {
     if (!shareUrl) return;
     QRCode.toDataURL(shareUrl, { width: 132, margin: 1, errorCorrectionLevel: "L", color: { dark: "#090909", light: "#f4f0e7" } })
       .then(setQrCode)
-      .catch(() => {
-        setQrCode("");
-        setShareStatus("二维码生成失败，请刷新重试");
-      });
+      .catch(() => setQrCode(""));
   }, [shareUrl]);
-
-  async function copyShareUrl() {
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      setShareStatus("链接已复制");
-    } catch {
-      setShareStatus("长按下方链接即可复制");
-    }
-  }
-
-  async function createShareImage() {
-    const poster = sharePosterRef.current;
-    if (!poster || !qrCode || isCreatingImage) return null;
-    setIsCreatingImage(true);
-    setShareStatus("正在生成分享图片…");
-    try {
-      await document.fonts.ready;
-      const qrImage = poster.querySelector<HTMLImageElement>(".share-qr img");
-      await qrImage?.decode().catch(() => undefined);
-      const capture = getShareImageCapture(poster.getBoundingClientRect().width);
-      const capturedCanvas = await html2canvas(poster, {
-        backgroundColor: capture.backgroundColor,
-        scale: capture.scale,
-        useCORS: true,
-        logging: false,
-      });
-      const canvas = normalizeShareCanvas(capturedCanvas);
-      return await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png", 1));
-    } catch {
-      setShareStatus("图片生成失败，请重试");
-      return null;
-    } finally {
-      setIsCreatingImage(false);
-    }
-  }
-
-  function downloadBlob(blob: Blob) {
-    const blobUrl = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = blobUrl;
-    link.download = `everything-showdown-${result.type}-${competition.id}.png`;
-    link.click();
-    URL.revokeObjectURL(blobUrl);
-    setShareStatus("分享图片已保存");
-  }
-
-  async function saveShareImage() {
-    const blob = await createShareImage();
-    if (blob) downloadBlob(blob);
-  }
-
-  async function shareImageFromDevice() {
-    const blob = await createShareImage();
-    if (!blob) return;
-    const file = new File([blob], `everything-showdown-${result.type}-${competition.id}.png`, { type: "image/png" });
-    if (navigator.share && navigator.canShare?.({ files: [file] })) {
-      try {
-        await navigator.share({ files: [file], title: `${competition.shortName} · 我的结果`, text: "看看我的万物对决结果，你会怎么选？" });
-        setShareStatus("分享图片已准备好");
-        return;
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") {
-          setShareStatus("已取消分享");
-          return;
-        }
-      }
-    }
-    downloadBlob(blob);
-  }
 
   return (
     <main className={`share-page theme-${competition.theme}`}>
@@ -468,7 +390,7 @@ function ShareResultView({ result, onClose }: { result: ShareResult; onClose: ()
       </header>
 
       <section className="share-result-shell">
-        <section className="share-poster" ref={sharePosterRef} aria-label="单页分享图片预览">
+        <section className="share-poster" aria-label="比赛结果">
           <header className="share-result-heading">
             <div><p>{competition.eyebrow} · SHARE RESULT</p><h1>{result.type === "bracket" ? "我的冠军之路" : "我的锐评榜单"}</h1></div>
             <span>{result.type === "bracket" ? `${result.entryIds.length} 强完整晋级树` : "从夯到拉 · 10 首定档"}</span>
@@ -487,20 +409,6 @@ function ShareResultView({ result, onClose }: { result: ShareResult; onClose: ()
             </div>
           </footer>
         </section>
-
-        <aside className="share-kit" aria-label="分享结果">
-          <div className="share-copy">
-            <p>一张图，分享完整结果</p>
-            <strong>图片固定为 1080 × 1350，手机保存后可直接发送</strong>
-            <input aria-label="结果分享网址" value={shareUrl} readOnly onFocus={(event) => event.currentTarget.select()} />
-            <div>
-              <button type="button" disabled={!shareUrl || !qrCode || isCreatingImage} onClick={shareImageFromDevice}>{isCreatingImage ? "正在生成…" : "分享图片 ↗"}</button>
-              <button type="button" disabled={!shareUrl || !qrCode || isCreatingImage} onClick={saveShareImage}>保存图片</button>
-              <button type="button" disabled={!shareUrl} onClick={copyShareUrl}>复制链接</button>
-            </div>
-            <small aria-live="polite">{shareStatus || "结果只保存在网址中，不会上传个人信息"}</small>
-          </div>
-        </aside>
       </section>
     </main>
   );
@@ -517,7 +425,7 @@ function SharedBracket({ result, entriesById, competition }: { result: BracketSh
 
   function renderRound(round: { roundSize: number; entries: string[] }, side: "left" | "right", index: number) {
     return (
-      <section className={`share-round ${side}`} key={`${side}-${round.roundSize}-${index}`}>
+      <section className={`share-round ${side} ${round.roundSize === 2 ? "finalist" : ""}`} key={`${side}-${round.roundSize}-${index}`}>
         <header><span>{roundLabel(round.roundSize)}</span><b>{round.entries.length}</b></header>
         <div className="share-round-list" style={{ gridTemplateRows: `repeat(${round.entries.length}, minmax(0, 1fr))` }}>
           {round.entries.map((entryId, entryIndex) => {

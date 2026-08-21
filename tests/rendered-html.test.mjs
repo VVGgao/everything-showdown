@@ -88,6 +88,9 @@ test("source includes local progress, reset, and accessible live feedback", asyn
   assert.match(css, /@media \(max-width:\s*760px\)[^]*\.mobile-page:not\(\.active\)\s*\{[^}]*display:\s*none/s);
   assert.match(mobileCss, /\.battle-stage\.has-pair\s*\{[^}]*height:\s*calc\(100svh[^}]*grid-template-rows:\s*repeat\(2/s);
   assert.match(page, /querySelector\("#battle-stage"\)\?\.scrollIntoView/);
+  assert.doesNotMatch(page, /一张图，分享完整结果|分享图片 ↗|保存图片/);
+  assert.match(mobileCss, /\.share-round:not\(\.finalist\)\s*\{[^}]*display:\s*none/s);
+  assert.match(mobileCss, /\.share-tree\s*\{[^}]*grid-template-columns:\s*repeat\(3,/s);
   await assert.rejects(access(new URL("../app/_sites-preview", import.meta.url)));
   await assert.rejects(access(new URL("../node_modules/react-loading-skeleton", root)));
 });

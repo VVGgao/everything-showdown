@@ -3,23 +3,6 @@ import LZString from "lz-string";
 const competitionIds = new Set(["hiphop", "kpop", "games"]);
 const ratingTierIds = new Set(["hang", "top", "human", "npc", "lame"]);
 
-export function getShareImageCapture(renderedWidth) {
-  return {
-    width: 1080,
-    height: 1350,
-    scale: 1080 / renderedWidth,
-    backgroundColor: "#080808",
-  };
-}
-
-export function normalizeShareCanvas(sourceCanvas, createCanvas = () => document.createElement("canvas")) {
-  const canvas = createCanvas();
-  canvas.width = 1080;
-  canvas.height = 1350;
-  canvas.getContext("2d").drawImage(sourceCanvas, 0, 0, canvas.width, canvas.height);
-  return canvas;
-}
-
 export function buildTournamentRounds(entryIds, winners) {
   const rounds = [[...entryIds]];
   let roundSize = entryIds.length / 2;
