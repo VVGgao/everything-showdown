@@ -52,6 +52,8 @@ test("server-renders the multi-category showdown platform", async () => {
   assert.match(html, /id="custom-entry"/);
   assert.match(html, /添加参赛项/);
   assert.match(html, /生成本地对决/);
+  assert.match(html, /aria-label="自定义参赛项目"/);
+  assert.match(html, /还没有参赛项/);
   assert.match(html, /抽出三十二首歌/);
   assert.match(html, /三十二部跨时代作品/);
   assert.match(html, /添加 2–32 个参赛项/);
@@ -88,6 +90,9 @@ test("source includes local progress, reset, and accessible live feedback", asyn
   assert.match(css, /@media \(max-width:\s*760px\)[^]*\.mobile-page:not\(\.active\)\s*\{[^}]*display:\s*none/s);
   assert.match(mobileCss, /\.battle-stage\.has-pair\s*\{[^}]*height:\s*calc\(100svh[^}]*grid-template-rows:\s*repeat\(2/s);
   assert.match(page, /querySelector\("#battle-stage"\)\?\.scrollIntoView/);
+  assert.match(page, /className="custom-entry-card"/);
+  assert.match(page, /className="custom-contender red"/);
+  assert.match(page, /className="custom-contender blue"/);
   assert.doesNotMatch(page, /一张图，分享完整结果|分享图片 ↗|保存图片/);
   assert.match(mobileCss, /\.share-round:not\(\.finalist\)\s*\{[^}]*display:\s*none/s);
   assert.match(mobileCss, /\.share-tree\s*\{[^}]*grid-template-columns:\s*repeat\(3,/s);

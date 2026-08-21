@@ -799,11 +799,31 @@ function CustomBuilder() {
         />
         <button type="button" onClick={addEntry}>添加参赛项</button>
       </div>
-      <div className="custom-tags">
-        {entries.map((entry) => (
-          <button type="button" onClick={() => setEntries((items) => items.filter((item) => item !== entry))} key={entry}>
-            {entry} <span>×</span>
-          </button>
+      <div className="custom-entry-list" aria-label="自定义参赛项目">
+        {entries.length === 0 ? (
+          <div className="custom-entry-empty">
+            <span>还没有参赛项</span>
+            <small>输入名称后，它们会像歌单一样排列在这里</small>
+          </div>
+        ) : entries.map((entry, index) => (
+          <article className="custom-entry-card" key={entry}>
+            <div className="custom-entry-art" aria-hidden="true">
+              <span>{String(index + 1).padStart(2, "0")}</span>
+              <b>{Array.from(entry)[0]}</b>
+            </div>
+            <div className="custom-entry-copy">
+              <small>PLAYER {String(index + 1).padStart(2, "0")}</small>
+              <strong>{entry}</strong>
+              <span>{tournament?.currentPair?.includes(entry) ? "当前对决" : "已加入比赛"}</span>
+            </div>
+            <button
+              type="button"
+              aria-label={`移除 ${entry}`}
+              onClick={() => setEntries((items) => items.filter((item) => item !== entry))}
+            >
+              ×
+            </button>
+          </article>
         ))}
       </div>
       <p aria-live="polite">{message}</p>
@@ -811,17 +831,34 @@ function CustomBuilder() {
       {!tournament && <button className="create-button" type="submit">生成本地对决 ↗</button>}
 
       {tournament?.currentPair && (
-        <div className="custom-duel" aria-live="polite">
-          <small>{title} · 第 {tournament.roundNumber} 轮</small>
-          <button type="button" onClick={() => pickCustom(tournament.currentPair![0])}>{tournament.currentPair[0]}</button>
-          <b>VS</b>
-          <button type="button" onClick={() => pickCustom(tournament.currentPair![1])}>{tournament.currentPair[1]}</button>
-        </div>
+        <section className="custom-duel" aria-live="polite">
+          <header>
+            <span>CUSTOM MATCH</span>
+            <strong>{title} · 第 {tournament.roundNumber} 轮</strong>
+          </header>
+          <div className="custom-duel-stage">
+            <button className="custom-contender red" type="button" aria-label={`选择 ${tournament.currentPair[0]} 晋级`} onClick={() => pickCustom(tournament.currentPair![0])}>
+              <span className="custom-contender-side">左方 · RED SIDE</span>
+              <span className="custom-contender-mark" aria-hidden="true">{Array.from(tournament.currentPair[0])[0]}</span>
+              <strong>{tournament.currentPair[0]}</strong>
+              <span className="custom-contender-pick">选 TA 晋级 <b>↗</b></span>
+            </button>
+            <div className="custom-versus" aria-hidden="true"><span>V</span><span>S</span></div>
+            <button className="custom-contender blue" type="button" aria-label={`选择 ${tournament.currentPair[1]} 晋级`} onClick={() => pickCustom(tournament.currentPair![1])}>
+              <span className="custom-contender-side">右方 · BLUE SIDE</span>
+              <span className="custom-contender-mark" aria-hidden="true">{Array.from(tournament.currentPair[1])[0]}</span>
+              <strong>{tournament.currentPair[1]}</strong>
+              <span className="custom-contender-pick">选 TA 晋级 <b>↗</b></span>
+            </button>
+          </div>
+        </section>
       )}
 
       {tournament?.championId && (
         <div className="custom-winner">
-          <small>你的冠军</small>
+          <CelebrationEffect />
+          <small>YOUR CUSTOM CHAMPION</small>
+          <b aria-hidden="true">♛</b>
           <strong>{tournament.championId}</strong>
           <span>自定义赛事不参与官方统计</span>
         </div>
