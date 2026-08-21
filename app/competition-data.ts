@@ -33,7 +33,7 @@ export const competitions: Competition[] = [
     shortName: "中国嘻哈",
     eyebrow: "CHINESE HIP-HOP",
     tagline: "今晚，只留一首",
-    description: "从多个中文说唱厂牌曲库中组建签表，抽出六十四首歌争夺最后的麦克风。",
+    description: "从多个中文说唱厂牌曲库中组建签表，抽出三十二首歌争夺最后的麦克风。",
     theme: "redblue",
     entries: [
       { id: "qilin", title: "麒麟", subtitle: "早安", meta: "南京", year: "2022", heat: 98210, champions: 12842, group: "Free-Out", label: "Free-Out" },
@@ -76,7 +76,7 @@ export const competitions: Competition[] = [
     shortName: "K-POP",
     eyebrow: "GLOBAL K-POP",
     tagline: "谁是你的本命神曲",
-    description: "自由组合偶像团体曲库，或从整个赛区抽出六十四首作品争夺最后的 C 位。",
+    description: "自由组合偶像团体曲库，或从整个赛区抽出三十二首作品争夺最后的 C 位。",
     theme: "neon",
     entries: [
       { id: "ditto", title: "Ditto", subtitle: "NewJeans", meta: "SEOUL", year: "2022", heat: 99120, champions: 14826, group: "NewJeans", label: "ADOR · HYBE" },

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import html2canvas from "html2canvas";
 import QRCode from "qrcode";
 import { competitions, type Competition, type Entry } from "./competition-data";
 import musicCatalogData from "./music-catalog.json";
@@ -10,21 +11,24 @@ import { groupEntriesByGroup, groupEntriesByLabel, groupEntriesByMember } from "
 import { drawRatingEntries, placeRatingEntry } from "./song-rating.js";
 import {
   buildShareUrl,
-  buildTournamentRounds,
+  buildCenteredBracket,
   createBracketShareResult,
   createRatingShareResult,
+  getShareImageCapture,
+  normalizeShareCanvas,
   readShareResultFromUrl,
 } from "./share-results.js";
 import {
   advanceCustomTournament,
   createCustomTournament,
   getCurrentMatch,
+  restoreOfficialTournament,
   type CustomTournamentState,
 } from "./tournament.js";
 
-const progressKey = (id: string) => `showdown-${id}-v3`;
-const championKey = (id: string) => `showdown-${id}-champion-v2`;
-const bracketKey = (id: string) => `showdown-${id}-bracket-v1`;
+const progressKey = (id: string) => `showdown-${id}-v5`;
+const championKey = (id: string) => `showdown-${id}-champion-v4`;
+const bracketKey = (id: string) => `showdown-${id}-bracket-v3`;
 const coverPath = (competitionId: Competition["id"], entryId: string) => `/covers/${competitionId}/${entryId}.webp`;
 const coverSrc = (competitionId: Competition["id"], entry: Entry) => entry.cover ?? coverPath(competitionId, entry.id);
 
@@ -43,11 +47,12 @@ const mobilePages: { id: MobilePageId; label: string }[] = [
   { id: "custom", label: "创建" },
 ];
 const mobileViewportQuery = "(max-width: 760px)";
+const officialTournamentSize = 32;
 const musicCatalog = musicCatalogData as Record<MusicCompetitionId, MusicPool[]>;
 const defaultMusicEntries = Object.fromEntries(
   (["hiphop", "kpop"] as MusicCompetitionId[]).map((id) => [
     id,
-    drawCrossPoolEntries(musicCatalog[id], musicCatalog[id].map((pool) => pool.id), 64, () => 0.5),
+    drawCrossPoolEntries(musicCatalog[id], musicCatalog[id].map((pool) => pool.id), officialTournamentSize, () => 0.5),
   ]),
 ) as Record<MusicCompetitionId, Entry[]>;
 
@@ -61,7 +66,7 @@ export default function Home() {
   const mobileScrollPositions = useRef<Partial<Record<MobilePageId, number>>>({});
   const pendingMobileScroll = useRef<number | null>(null);
   const baseActive = competitions.find((item) => item.id === activeId) ?? competitions[0];
-  const defaultEntries = activeId === "games" ? baseActive.entries : defaultMusicEntries[activeId];
+  const defaultEntries = activeId === "games" ? baseActive.entries.slice(0, officialTournamentSize) : defaultMusicEntries[activeId];
   const active = { ...baseActive, entries: arena.id === activeId ? arena.entries : defaultEntries };
   const totalMatches = active.entries.length - 1;
   const match = getCurrentMatch(active.entries.map((entry) => entry.id), winners);
@@ -86,17 +91,23 @@ export default function Home() {
 
   useEffect(() => {
     try {
-      const available = new Map([
+      const available = [
         ...baseActive.entries,
         ...(activeId === "games" ? [] : musicCatalog[activeId].flatMap((pool) => pool.entries)),
-      ].map((entry) => [entry.id, entry]));
+      ];
       const savedBracket = JSON.parse(localStorage.getItem(bracketKey(activeId)) ?? "[]");
-      const restored = Array.isArray(savedBracket) ? savedBracket.map((id) => available.get(id)).filter((entry): entry is Entry => Boolean(entry)) : [];
-      setArena({ id: activeId, entries: restored.length === 64 ? restored : defaultEntries });
       const saved = JSON.parse(localStorage.getItem(progressKey(activeId)) ?? "[]");
-      const restoredMatches = (restored.length === 64 ? restored.length : defaultEntries.length) - 1;
-      setWinners(Array.isArray(saved) ? saved.slice(0, restoredMatches) : []);
-      setSubmittedChampion(localStorage.getItem(championKey(activeId)));
+      const restored = restoreOfficialTournament({
+        defaultEntries,
+        availableEntries: available,
+        savedBracket,
+        savedWinners: saved,
+        expectedSize: officialTournamentSize,
+      });
+      setArena({ id: activeId, entries: restored.entries });
+      setWinners(restored.winners);
+      const savedChampion = localStorage.getItem(championKey(activeId));
+      setSubmittedChampion(restored.winners.length === officialTournamentSize - 1 && restored.winners.at(-1) === savedChampion ? savedChampion : null);
     } catch {
       setWinners([]);
       setSubmittedChampion(null);
@@ -274,6 +285,7 @@ export default function Home() {
           )}
           {champion && (
             <div className="champion-stage">
+              <CelebrationEffect />
               <small>YOUR CHAMPION</small>
               <img className="champion-artwork" src={coverSrc(active.id, champion)} alt={`${champion.title} 封面`} />
               <span className="champion-crown">♛</span>
@@ -347,6 +359,16 @@ export default function Home() {
   );
 }
 
+function CelebrationEffect() {
+  return (
+    <div className="celebration-effect" aria-hidden="true">
+      <span className="celebration-halo" />
+      <span className="celebration-flare">✦</span>
+      <div className="celebration-confetti">{Array.from({ length: 12 }, (_, index) => <i key={index} />)}</div>
+    </div>
+  );
+}
+
 function ShareResultView({ result, onClose }: { result: ShareResult; onClose: () => void }) {
   const competition = competitions.find((item) => item.id === result.competitionId) ?? competitions[0];
   const availableEntries = competition.id === "games"
@@ -354,14 +376,19 @@ function ShareResultView({ result, onClose }: { result: ShareResult; onClose: ()
     : musicCatalog[competition.id].flatMap((pool) => pool.entries);
   const entriesById = new Map(availableEntries.map((entry) => [entry.id, entry]));
   const shareUrl = buildShareUrl(window.location.href, result);
+  const sharePosterRef = useRef<HTMLElement>(null);
   const [qrCode, setQrCode] = useState("");
   const [shareStatus, setShareStatus] = useState("");
+  const [isCreatingImage, setIsCreatingImage] = useState(false);
 
   useEffect(() => {
     if (!shareUrl) return;
-    QRCode.toDataURL(shareUrl, { width: 260, margin: 1, errorCorrectionLevel: "L", color: { dark: "#090909", light: "#f4f0e7" } })
+    QRCode.toDataURL(shareUrl, { width: 132, margin: 1, errorCorrectionLevel: "L", color: { dark: "#090909", light: "#f4f0e7" } })
       .then(setQrCode)
-      .catch(() => setQrCode(""));
+      .catch(() => {
+        setQrCode("");
+        setShareStatus("二维码生成失败，请刷新重试");
+      });
   }, [shareUrl]);
 
   async function copyShareUrl() {
@@ -373,20 +400,64 @@ function ShareResultView({ result, onClose }: { result: ShareResult; onClose: ()
     }
   }
 
-  async function shareFromDevice() {
-    if (!navigator.share) {
-      await copyShareUrl();
-      return;
-    }
+  async function createShareImage() {
+    const poster = sharePosterRef.current;
+    if (!poster || !qrCode || isCreatingImage) return null;
+    setIsCreatingImage(true);
+    setShareStatus("正在生成分享图片…");
     try {
-      await navigator.share({
-        title: result.type === "bracket" ? `${competition.shortName} · 我的冠军结果` : `${competition.shortName} · 我的锐评结果`,
-        text: "看看我的万物对决结果，你会怎么选？",
-        url: shareUrl,
+      await document.fonts.ready;
+      const qrImage = poster.querySelector<HTMLImageElement>(".share-qr img");
+      await qrImage?.decode().catch(() => undefined);
+      const capture = getShareImageCapture(poster.getBoundingClientRect().width);
+      const capturedCanvas = await html2canvas(poster, {
+        backgroundColor: capture.backgroundColor,
+        scale: capture.scale,
+        useCORS: true,
+        logging: false,
       });
-    } catch (error) {
-      if (!(error instanceof DOMException) || error.name !== "AbortError") setShareStatus("系统分享不可用，请复制链接");
+      const canvas = normalizeShareCanvas(capturedCanvas);
+      return await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png", 1));
+    } catch {
+      setShareStatus("图片生成失败，请重试");
+      return null;
+    } finally {
+      setIsCreatingImage(false);
     }
+  }
+
+  function downloadBlob(blob: Blob) {
+    const blobUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = blobUrl;
+    link.download = `everything-showdown-${result.type}-${competition.id}.png`;
+    link.click();
+    URL.revokeObjectURL(blobUrl);
+    setShareStatus("分享图片已保存");
+  }
+
+  async function saveShareImage() {
+    const blob = await createShareImage();
+    if (blob) downloadBlob(blob);
+  }
+
+  async function shareImageFromDevice() {
+    const blob = await createShareImage();
+    if (!blob) return;
+    const file = new File([blob], `everything-showdown-${result.type}-${competition.id}.png`, { type: "image/png" });
+    if (navigator.share && navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: `${competition.shortName} · 我的结果`, text: "看看我的万物对决结果，你会怎么选？" });
+        setShareStatus("分享图片已准备好");
+        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          setShareStatus("已取消分享");
+          return;
+        }
+      }
+    }
+    downloadBlob(blob);
   }
 
   return (
@@ -397,25 +468,34 @@ function ShareResultView({ result, onClose }: { result: ShareResult; onClose: ()
       </header>
 
       <section className="share-result-shell">
-        <header className="share-result-heading">
-          <div><p>{competition.eyebrow} · SHARE RESULT</p><h1>{result.type === "bracket" ? "我的冠军之路" : "我的锐评榜单"}</h1></div>
-          <span>{result.type === "bracket" ? "完整晋级树" : "从夯到拉 · 10 首定档"}</span>
-        </header>
+        <section className="share-poster" ref={sharePosterRef} aria-label="单页分享图片预览">
+          <header className="share-result-heading">
+            <div><p>{competition.eyebrow} · SHARE RESULT</p><h1>{result.type === "bracket" ? "我的冠军之路" : "我的锐评榜单"}</h1></div>
+            <span>{result.type === "bracket" ? `${result.entryIds.length} 强完整晋级树` : "从夯到拉 · 10 首定档"}</span>
+          </header>
 
-        {result.type === "bracket"
-          ? <SharedBracket result={result} entriesById={entriesById} competition={competition} />
-          : <SharedRating result={result} entriesById={entriesById} competition={competition} />}
+          <div className="share-poster-result">
+            {result.type === "bracket"
+              ? <SharedBracket result={result} entriesById={entriesById} competition={competition} />
+              : <SharedRating result={result} entriesById={entriesById} competition={competition} />}
+          </div>
+
+          <footer className="share-poster-footer">
+            <div><span className="brand-mark">决</span><p><strong>EVERYTHING SHOWDOWN</strong><small>扫码查看同一结果，看看你会怎么选</small></p></div>
+            <div className="share-qr">
+              {qrCode ? <img src={qrCode} alt="此结果分享网址的二维码" /> : <span>生成中</span>}
+            </div>
+          </footer>
+        </section>
 
         <aside className="share-kit" aria-label="分享结果">
-          <div className="share-qr">
-            {qrCode ? <img src={qrCode} alt="此结果分享网址的二维码" /> : <span>正在生成二维码…</span>}
-          </div>
           <div className="share-copy">
-            <p>让朋友扫码，或直接把链接发给 TA</p>
-            <strong>同一结果，手机和电脑都能查看</strong>
+            <p>一张图，分享完整结果</p>
+            <strong>图片固定为 1080 × 1350，手机保存后可直接发送</strong>
             <input aria-label="结果分享网址" value={shareUrl} readOnly onFocus={(event) => event.currentTarget.select()} />
             <div>
-              <button type="button" disabled={!shareUrl} onClick={shareFromDevice}>系统分享 ↗</button>
+              <button type="button" disabled={!shareUrl || !qrCode || isCreatingImage} onClick={shareImageFromDevice}>{isCreatingImage ? "正在生成…" : "分享图片 ↗"}</button>
+              <button type="button" disabled={!shareUrl || !qrCode || isCreatingImage} onClick={saveShareImage}>保存图片</button>
               <button type="button" disabled={!shareUrl} onClick={copyShareUrl}>复制链接</button>
             </div>
             <small aria-live="polite">{shareStatus || "结果只保存在网址中，不会上传个人信息"}</small>
@@ -427,32 +507,45 @@ function ShareResultView({ result, onClose }: { result: ShareResult; onClose: ()
 }
 
 function SharedBracket({ result, entriesById, competition }: { result: BracketShareResult; entriesById: Map<string, Entry>; competition: Competition }) {
-  const rounds = buildTournamentRounds(result.entryIds, result.winners) as string[][];
-  const champion = entriesById.get(result.winners.at(-1) ?? "");
-  const treeHeight = Math.max(720, result.entryIds.length * 42);
+  const bracket = buildCenteredBracket(result.entryIds, result.winners) as {
+    left: { roundSize: number; entries: string[] }[];
+    champion?: string;
+    right: { roundSize: number; entries: string[] }[];
+  };
+  const champion = entriesById.get(bracket.champion ?? "");
+  const roundLabel = (roundSize: number) => roundSize === 2 ? "决赛" : `${roundSize} 强`;
+
+  function renderRound(round: { roundSize: number; entries: string[] }, side: "left" | "right", index: number) {
+    return (
+      <section className={`share-round ${side}`} key={`${side}-${round.roundSize}-${index}`}>
+        <header><span>{roundLabel(round.roundSize)}</span><b>{round.entries.length}</b></header>
+        <div className="share-round-list" style={{ gridTemplateRows: `repeat(${round.entries.length}, minmax(0, 1fr))` }}>
+          {round.entries.map((entryId, entryIndex) => {
+            const entry = entriesById.get(entryId);
+            return <div className="share-tree-node" title={entry?.title} key={`${entryId}-${entryIndex}`}><strong>{entry?.title ?? "未知参赛项"}</strong><span>{entry?.subtitle}</span></div>;
+          })}
+        </div>
+      </section>
+    );
+  }
 
   return (
     <div className="shared-bracket-card">
-      {champion && (
-        <header className="shared-champion">
-          <img src={coverSrc(competition.id, champion)} alt={`${champion.title} 封面`} />
-          <div><span>MY CHAMPION</span><h2>{champion.title}</h2><p>{champion.subtitle}</p></div>
-          <b>♛</b>
-        </header>
-      )}
-      <div className="share-tree-viewport" aria-label="完整晋级树，可横向和纵向滚动查看">
-        <div className="share-tree" style={{ height: treeHeight }}>
-          {rounds.map((round, roundIndex) => (
-            <section className={`share-round ${round.length === 1 ? "final" : ""}`} key={roundIndex}>
-              <header><span>ROUND {roundIndex + 1}</span><b>{round.length === 1 ? "冠军" : `${round.length} 强`}</b></header>
-              <div className="share-round-list" style={{ gridTemplateRows: `repeat(${round.length}, minmax(34px, 1fr))` }}>
-                {round.map((entryId, index) => {
-                  const entry = entriesById.get(entryId);
-                  return <div className="share-tree-node" title={entry?.title} key={`${entryId}-${index}`}><strong>{entry?.title ?? "未知参赛项"}</strong><span>{entry?.subtitle}</span></div>;
-                })}
-              </div>
-            </section>
-          ))}
+      <div className="share-tree-viewport" aria-label="完整赛事表，冠军位于正中央">
+        <div className="share-tree" style={{ gridTemplateColumns: `repeat(${bracket.left.length + bracket.right.length + 1}, minmax(0, 1fr))` }}>
+          {bracket.left.map((round, index) => renderRound(round, "left", index))}
+          <section className="share-center-column">
+            <header><span>WINNER</span><b>冠军</b></header>
+            <div className="shared-center-champion">
+              {champion && <>
+                <b>♛</b>
+                <img src={coverSrc(competition.id, champion)} alt={`${champion.title} 封面`} />
+                <strong>{champion.title}</strong>
+                <span>{champion.subtitle}</span>
+              </>}
+            </div>
+          </section>
+          {bracket.right.map((round, index) => renderRound(round, "right", index))}
         </div>
       </div>
     </div>
@@ -488,7 +581,7 @@ function MusicPoolSelector({ competitionId, onDraw }: { competitionId: MusicComp
   const openPool = pools.find((pool) => pool.id === openPoolId) ?? pools[0];
   const groupWord = competitionId === "kpop" ? "团体" : "厂牌";
   const selectorDescription = `选择多个${groupWord}合并歌池进行 PK，第一赛段优先安排跨${groupWord}对决，并偏向抽取热度较高的歌曲。`;
-  const missing = Math.max(0, 64 - selectedEntries.length);
+  const missing = Math.max(0, officialTournamentSize - selectedEntries.length);
 
   useEffect(() => {
     setSelectedIds([]);
@@ -502,7 +595,7 @@ function MusicPoolSelector({ competitionId, onDraw }: { competitionId: MusicComp
   return (
     <section className="pool-selector" aria-labelledby="pool-selector-title">
       <header>
-        <div><span>BUILD THE DRAW</span><h2 id="pool-selector-title">组建 64 强</h2></div>
+        <div><span>BUILD THE DRAW</span><h2 id="pool-selector-title">组建 32 强</h2></div>
         <p>{selectorDescription}</p>
       </header>
       <div className="pool-options">
@@ -533,11 +626,11 @@ function MusicPoolSelector({ competitionId, onDraw }: { competitionId: MusicComp
       <div className="pool-actions">
         <p aria-live="polite">
           已选 {selectedIds.length} 个{groupWord} · {selectedEntries.length} 首可用
-          {missing > 0 ? ` · 还差 ${missing} 首可组成 64 强` : " · 可以开始抽签"}
+          {missing > 0 ? ` · 还差 ${missing} 首可组成 32 强` : " · 可以开始抽签"}
         </p>
         <div>
-          <button type="button" disabled={selectedEntries.length < 64} onClick={() => onDraw(drawCrossPoolEntries(pools, selectedIds, 64))}>从所选歌池抽取 64 首</button>
-          <button type="button" onClick={() => onDraw(drawHeatBiasedEntries(allEntries, 64))}>全赛区热门优先 64 首</button>
+          <button type="button" disabled={selectedEntries.length < officialTournamentSize} onClick={() => onDraw(drawCrossPoolEntries(pools, selectedIds, officialTournamentSize))}>从所选歌池抽取 32 首</button>
+          <button type="button" onClick={() => onDraw(drawHeatBiasedEntries(allEntries, officialTournamentSize))}>全赛区热门优先 32 首</button>
         </div>
       </div>
     </section>
@@ -714,7 +807,16 @@ function SongRatingBoard({ active, onShare }: { active: Competition; onShare: (r
       </div>
       <div className="rating-result-actions">
         <p className="rating-status" aria-live="polite">已评价 {ratedCount} / 10 首</p>
-        {ratedCount === songs.length && <button type="button" onClick={() => onShare(createRatingShareResult(active.id, songs.map((entry) => entry.id), placements) as RatingShareResult)}>生成锐评分享页 ↗</button>}
+        {ratedCount === songs.length && (
+          <>
+            <div className="rating-complete-celebration">
+              <CelebrationEffect />
+              <span>♛</span>
+              <div><strong>锐评完成</strong><small>你的十首榜单已经定档</small></div>
+            </div>
+            <button type="button" onClick={() => onShare(createRatingShareResult(active.id, songs.map((entry) => entry.id), placements) as RatingShareResult)}>生成锐评分享页 ↗</button>
+          </>
+        )}
       </div>
     </section>
   );

@@ -3,6 +3,23 @@ import LZString from "lz-string";
 const competitionIds = new Set(["hiphop", "kpop", "games"]);
 const ratingTierIds = new Set(["hang", "top", "human", "npc", "lame"]);
 
+export function getShareImageCapture(renderedWidth) {
+  return {
+    width: 1080,
+    height: 1350,
+    scale: 1080 / renderedWidth,
+    backgroundColor: "#080808",
+  };
+}
+
+export function normalizeShareCanvas(sourceCanvas, createCanvas = () => document.createElement("canvas")) {
+  const canvas = createCanvas();
+  canvas.width = 1080;
+  canvas.height = 1350;
+  canvas.getContext("2d").drawImage(sourceCanvas, 0, 0, canvas.width, canvas.height);
+  return canvas;
+}
+
 export function buildTournamentRounds(entryIds, winners) {
   const rounds = [[...entryIds]];
   let roundSize = entryIds.length / 2;
@@ -17,6 +34,21 @@ export function buildTournamentRounds(entryIds, winners) {
   }
 
   return rounds;
+}
+
+export function buildCenteredBracket(entryIds, winners) {
+  const rounds = buildTournamentRounds(entryIds, winners);
+  const sideRounds = rounds.slice(0, -1).map((round) => ({
+    roundSize: round.length,
+    left: round.slice(0, round.length / 2),
+    right: round.slice(round.length / 2),
+  }));
+
+  return {
+    left: sideRounds.map(({ roundSize, left }) => ({ roundSize, entries: left })),
+    champion: rounds.at(-1)?.[0],
+    right: sideRounds.reverse().map(({ roundSize, right }) => ({ roundSize, entries: right })),
+  };
 }
 
 export function createBracketShareResult(competitionId, entryIds, winners) {

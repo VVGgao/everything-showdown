@@ -16,6 +16,18 @@ export function getCurrentMatch(
   winners: string[],
 ): ActiveMatch | FinishedTournament;
 
+export function restoreOfficialTournament<T extends { id: string }>(options: {
+  defaultEntries: T[];
+  availableEntries: T[];
+  savedBracket: unknown;
+  savedWinners: unknown;
+  expectedSize: number;
+}): {
+  entries: T[];
+  winners: string[];
+  restored: boolean;
+};
+
 export type CustomTournamentState = {
   pending: Array<string | null>;
   nextRound: string[];

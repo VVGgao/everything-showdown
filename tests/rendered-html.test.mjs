@@ -33,12 +33,12 @@ test("server-renders the multi-category showdown platform", async () => {
   assert.match(html, /按厂牌与团体查看/);
   assert.match(html, /SUP MUSIC/);
   assert.match(html, /个人 \/ ARTIST/);
-  assert.equal([...html.matchAll(/class="roster-song"/g)].length, 64);
-  assert.match(html, /组建 64 强/);
+  assert.equal([...html.matchAll(/class="roster-song"/g)].length, 32);
+  assert.match(html, /组建 32 强/);
   assert.match(html, /选择多个厂牌/);
   assert.match(html, /第一赛段优先安排跨厂牌对决/);
-  assert.match(html, /从所选歌池抽取 64 首/);
-  assert.match(html, /全赛区热门优先 64 首/);
+  assert.match(html, /从所选歌池抽取 32 首/);
+  assert.match(html, /全赛区热门优先 32 首/);
   assert.match(html, /完整曲库/);
   assert.match(html, /<details class="pool-catalog"[^>]*>/);
   assert.match(html, /href="#pool-catalog"/);
@@ -52,7 +52,8 @@ test("server-renders the multi-category showdown platform", async () => {
   assert.match(html, /id="custom-entry"/);
   assert.match(html, /添加参赛项/);
   assert.match(html, /生成本地对决/);
-  assert.match(html, /六十四首/);
+  assert.match(html, /抽出三十二首歌/);
+  assert.match(html, /三十二部跨时代作品/);
   assert.match(html, /添加 2–32 个参赛项/);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton/i);
   assert.match(html, /<details class="roster-details">/);

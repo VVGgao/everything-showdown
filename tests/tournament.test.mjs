@@ -113,3 +113,17 @@ test("custom tournament accepts 32 entries and finishes after 31 picks", () => {
   assert.equal(picks, 31);
   assert.equal(state.championId, "entry-1");
 });
+
+test("old progress is ignored when its saved bracket is not the current 32-entry bracket", async () => {
+  const tournament = await import("../app/tournament.js");
+  const defaultEntries = Array.from({ length: 32 }, (_, index) => ({ id: `new-${index + 1}` }));
+  const oldEntries = Array.from({ length: 16 }, (_, index) => ({ id: `old-${index + 1}` }));
+
+  assert.deepEqual(tournament.restoreOfficialTournament?.({
+    defaultEntries,
+    availableEntries: [...defaultEntries, ...oldEntries],
+    savedBracket: oldEntries.map((entry) => entry.id),
+    savedWinners: oldEntries.slice(0, 8).map((entry) => entry.id),
+    expectedSize: 32,
+  }), { entries: defaultEntries, winners: [], restored: false });
+});

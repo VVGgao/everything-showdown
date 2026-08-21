@@ -49,6 +49,27 @@ export function getCurrentMatch(entryIds, winners) {
   };
 }
 
+export function restoreOfficialTournament({ defaultEntries, availableEntries, savedBracket, savedWinners, expectedSize }) {
+  const entriesById = new Map(availableEntries.map((entry) => [entry.id, entry]));
+  const bracketIds = Array.isArray(savedBracket) ? savedBracket : [];
+  const entries = bracketIds.length === 0
+    ? defaultEntries
+    : bracketIds.map((id) => entriesById.get(id)).filter(Boolean);
+  if (entries.length !== expectedSize || (bracketIds.length > 0 && new Set(bracketIds).size !== expectedSize)) {
+    return { entries: defaultEntries, winners: [], restored: false };
+  }
+
+  const entryIds = entries.map((entry) => entry.id);
+  const winners = [];
+  for (const winnerId of Array.isArray(savedWinners) ? savedWinners.slice(0, expectedSize - 1) : []) {
+    const match = getCurrentMatch(entryIds, winners);
+    if (match.finished || !match.pair.includes(winnerId)) break;
+    winners.push(winnerId);
+  }
+
+  return { entries, winners, restored: true };
+}
+
 /**
  * @typedef {{
  *   pending: Array<string | null>,
