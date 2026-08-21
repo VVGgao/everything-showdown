@@ -1,6 +1,7 @@
 export type ActiveMatch = {
   finished: false;
   round: string;
+  stage: "opening" | "round-of-16" | "quarterfinal" | "semifinal" | "final";
   roundNumber: number;
   matchNumber: number;
   pair: [string, string];

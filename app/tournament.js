@@ -6,6 +6,15 @@ function getRoundLabel(entrants) {
   return `${entrants}强赛`;
 }
 
+/** @param {number} entrants */
+function getStage(entrants) {
+  if (entrants === 2) return "final";
+  if (entrants === 4) return "semifinal";
+  if (entrants === 8) return "quarterfinal";
+  if (entrants === 16) return "round-of-16";
+  return "opening";
+}
+
 /**
  * Returns the next match in a power-of-two single-elimination bracket.
  * Winners are stored chronologically, round by round.
@@ -43,6 +52,7 @@ export function getCurrentMatch(entryIds, winners) {
   return {
     finished: false,
     round: getRoundLabel(matchesInRound * 2),
+    stage: getStage(matchesInRound * 2),
     roundNumber,
     matchNumber: matchIndex + 1,
     pair,

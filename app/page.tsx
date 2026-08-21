@@ -12,6 +12,7 @@ import {
   buildShareUrl,
   buildCenteredBracket,
   createBracketShareResult,
+  createCustomBracketShareResult,
   createRatingShareResult,
   readShareResultFromUrl,
 } from "./share-results.js";
@@ -32,8 +33,9 @@ const coverSrc = (competitionId: Competition["id"], entry: Entry) => entry.cover
 type MusicCompetitionId = "hiphop" | "kpop";
 type MusicPool = { id: string; name: string; label: string; entries: Entry[] };
 type BracketShareResult = { version: 1; type: "bracket"; competitionId: Competition["id"]; entryIds: string[]; winners: string[] };
+type CustomBracketShareResult = { version: 1; type: "custom-bracket"; title: string; entryIds: string[]; winners: string[] };
 type RatingShareResult = { version: 1; type: "rating"; competitionId: Competition["id"]; items: [string, string][] };
-type ShareResult = BracketShareResult | RatingShareResult;
+type ShareResult = BracketShareResult | CustomBracketShareResult | RatingShareResult;
 type MobilePageId = "leagues" | "battle" | "path" | "rating" | "stats" | "custom";
 const mobilePages: { id: MobilePageId; label: string }[] = [
   { id: "leagues", label: "赛区" },
@@ -78,7 +80,7 @@ export default function Home() {
     function syncShareResult() {
       const result = readShareResultFromUrl(window.location.href) as ShareResult | null;
       setShareResult(result);
-      if (result) setActiveId(result.competitionId);
+      if (result && result.type !== "custom-bracket") setActiveId(result.competitionId);
     }
 
     syncShareResult();
@@ -266,13 +268,18 @@ export default function Home() {
 
         {active.id !== "games" && <MusicPoolSelector competitionId={active.id} onDraw={startMusicDraw} />}
 
-        <div className="round-line">
+        <div className={`round-line ${match.finished ? "stage-champion" : `stage-${match.stage}`}`}>
           <span>{match.finished ? "赛事完成" : match.round}</span>
           <b>{Math.min(winners.length + 1, totalMatches).toString().padStart(2, "0")} / {totalMatches}</b>
           <span>{winners.length} / {totalMatches} 场已完成</span>
         </div>
 
-        <div className={`battle-stage ${pair ? "has-pair" : "has-champion"}`} id="battle-stage" aria-live="polite">
+        <div
+          className={`battle-stage ${match.finished ? "has-champion stage-champion" : `has-pair stage-${match.stage}`}`}
+          id="battle-stage"
+          data-stage-label={!match.finished && match.stage === "semifinal" ? "FINAL FOUR" : !match.finished && match.stage === "final" ? "FINAL" : undefined}
+          aria-live="polite"
+        >
           {pair && (
             <>
               <EntryCard competitionId={active.id} side="red" entry={pair[0]} onChoose={choose} />
@@ -330,10 +337,10 @@ export default function Home() {
             <h2>创建我的对决</h2>
             <span>把朋友间争论不休的话题，变成一场真正的淘汰赛。自定义赛事只保存在你的浏览器，不参与官方统计。</span>
           </div>
-          <CustomBuilder />
+          <CustomBuilder onShare={(result) => openShareResult(result)} />
         </section>
 
-        <footer>
+        <footer className="site-footer">
           <div><span className="brand-mark">决</span><p>SHOWDOWN ARENA · 本地 Demo<br />统计数字为模拟数据，不代表真实用户结果</p></div>
           <button type="button" onClick={resetShowdown}>重置当前赛区 ↺</button>
         </footer>
@@ -367,12 +374,25 @@ function CelebrationEffect() {
 }
 
 function ShareResultView({ result, onClose }: { result: ShareResult; onClose: () => void }) {
-  const competition = competitions.find((item) => item.id === result.competitionId) ?? competitions[0];
-  const availableEntries = competition.id === "games"
-    ? competition.entries
-    : musicCatalog[competition.id].flatMap((pool) => pool.entries);
+  const competition = result.type === "custom-bracket"
+    ? undefined
+    : competitions.find((item) => item.id === result.competitionId) ?? competitions[0];
+  const availableEntries: Entry[] = result.type === "custom-bracket"
+    ? result.entryIds.map((title) => ({ id: title, title, subtitle: "自定义参赛项", meta: "CUSTOM", year: "", heat: 0, champions: 0 }))
+    : competition!.id === "games"
+      ? competition!.entries
+      : musicCatalog[competition!.id].flatMap((pool) => pool.entries);
   const entriesById = new Map(availableEntries.map((entry) => [entry.id, entry]));
   const shareUrl = buildShareUrl(window.location.href, result);
+  const bracketSizeClass = result.type === "rating"
+    ? ""
+    : result.entryIds.length <= 4
+      ? "short-bracket"
+      : result.entryIds.length <= 8
+        ? "compact-bracket"
+        : result.entryIds.length <= 16
+          ? "medium-bracket"
+          : "full-bracket";
   const [qrCode, setQrCode] = useState("");
 
   useEffect(() => {
@@ -383,23 +403,26 @@ function ShareResultView({ result, onClose }: { result: ShareResult; onClose: ()
   }, [shareUrl]);
 
   return (
-    <main className={`share-page theme-${competition.theme}`}>
+    <main className={`share-page theme-${competition?.theme ?? "redblue"}`}>
       <header className="share-topbar">
         <div className="brand"><span className="brand-mark">决</span><span>SHOWDOWN<br /><strong>结果分享</strong></span></div>
         <button type="button" onClick={onClose}>返回赛场 ×</button>
       </header>
 
       <section className="share-result-shell">
-        <section className="share-poster" aria-label="比赛结果">
+        <section className={`share-poster ${bracketSizeClass}`} aria-label="比赛结果">
           <header className="share-result-heading">
-            <div><p>{competition.eyebrow} · SHARE RESULT</p><h1>{result.type === "bracket" ? "我的冠军之路" : "我的锐评榜单"}</h1></div>
-            <span>{result.type === "bracket" ? `${result.entryIds.length} 强完整晋级树` : "从夯到拉 · 10 首定档"}</span>
+            <div>
+              <p>{result.type === "custom-bracket" ? "CUSTOM SHOWDOWN" : competition!.eyebrow} · SHARE RESULT</p>
+              <h1>{result.type === "rating" ? "我的锐评榜单" : result.type === "custom-bracket" ? result.title : "我的冠军之路"}</h1>
+            </div>
+            <span>{result.type === "rating" ? "从夯到拉 · 10 首定档" : `${result.entryIds.length} 项完整晋级树`}</span>
           </header>
 
           <div className="share-poster-result">
-            {result.type === "bracket"
+            {result.type !== "rating"
               ? <SharedBracket result={result} entriesById={entriesById} competition={competition} />
-              : <SharedRating result={result} entriesById={entriesById} competition={competition} />}
+              : <SharedRating result={result} entriesById={entriesById} competition={competition!} />}
           </div>
 
           <footer className="share-poster-footer">
@@ -414,7 +437,7 @@ function ShareResultView({ result, onClose }: { result: ShareResult; onClose: ()
   );
 }
 
-function SharedBracket({ result, entriesById, competition }: { result: BracketShareResult; entriesById: Map<string, Entry>; competition: Competition }) {
+function SharedBracket({ result, entriesById, competition }: { result: BracketShareResult | CustomBracketShareResult; entriesById: Map<string, Entry>; competition?: Competition }) {
   const bracket = buildCenteredBracket(result.entryIds, result.winners) as {
     left: { roundSize: number; entries: string[] }[];
     champion?: string;
@@ -424,13 +447,17 @@ function SharedBracket({ result, entriesById, competition }: { result: BracketSh
   const roundLabel = (roundSize: number) => roundSize === 2 ? "决赛" : `${roundSize} 强`;
 
   function renderRound(round: { roundSize: number; entries: string[] }, side: "left" | "right", index: number) {
+    const nextEntries = side === "left"
+      ? bracket.left[index + 1]?.entries ?? [bracket.champion]
+      : bracket.right[index - 1]?.entries ?? [bracket.champion];
+    const advancedIds = new Set(nextEntries.filter(Boolean));
     return (
       <section className={`share-round ${side} ${round.roundSize === 2 ? "finalist" : ""}`} key={`${side}-${round.roundSize}-${index}`}>
         <header><span>{roundLabel(round.roundSize)}</span><b>{round.entries.length}</b></header>
         <div className="share-round-list" style={{ gridTemplateRows: `repeat(${round.entries.length}, minmax(0, 1fr))` }}>
           {round.entries.map((entryId, entryIndex) => {
             const entry = entriesById.get(entryId);
-            return <div className="share-tree-node" title={entry?.title} key={`${entryId}-${entryIndex}`}><strong>{entry?.title ?? "未知参赛项"}</strong><span>{entry?.subtitle}</span></div>;
+            return <div className={`share-tree-node ${advancedIds.has(entryId) ? "advanced" : ""}`} title={entry?.title} key={`${entryId}-${entryIndex}`}><strong>{entry?.title ?? "未知参赛项"}</strong><span>{entry?.subtitle}</span></div>;
           })}
         </div>
       </section>
@@ -440,14 +467,16 @@ function SharedBracket({ result, entriesById, competition }: { result: BracketSh
   return (
     <div className="shared-bracket-card">
       <div className="share-tree-viewport" aria-label="完整赛事表，冠军位于正中央">
-        <div className="share-tree" style={{ gridTemplateColumns: `repeat(${bracket.left.length + bracket.right.length + 1}, minmax(0, 1fr))` }}>
+        <div className="share-tree" style={{ gridTemplateColumns: `repeat(${bracket.left.length}, minmax(0, 1fr)) minmax(130px, 1.35fr) repeat(${bracket.right.length}, minmax(0, 1fr))` }}>
           {bracket.left.map((round, index) => renderRound(round, "left", index))}
           <section className="share-center-column">
             <header><span>WINNER</span><b>冠军</b></header>
             <div className="shared-center-champion">
               {champion && <>
                 <b>♛</b>
-                <img src={coverSrc(competition.id, champion)} alt={`${champion.title} 封面`} />
+                {competition
+                  ? <img src={coverSrc(competition.id, champion)} alt={`${champion.title} 封面`} />
+                  : <span className="shared-custom-champion-mark" aria-hidden="true">{Array.from(champion.title)[0]}</span>}
                 <strong>{champion.title}</strong>
                 <span>{champion.subtitle}</span>
               </>}
@@ -730,11 +759,12 @@ function SongRatingBoard({ active, onShare }: { active: Competition; onShare: (r
   );
 }
 
-function CustomBuilder() {
+function CustomBuilder({ onShare }: { onShare: (result: CustomBracketShareResult) => void }) {
   const [title, setTitle] = useState("我的巅峰对决");
   const [draft, setDraft] = useState("");
   const [entries, setEntries] = useState<string[]>([]);
   const [tournament, setTournament] = useState<CustomTournamentState | null>(null);
+  const [customWinners, setCustomWinners] = useState<string[]>([]);
   const [message, setMessage] = useState("添加 2–32 个参赛项，即刻开赛");
 
   useEffect(() => {
@@ -743,6 +773,7 @@ function CustomBuilder() {
       if (saved?.title && Array.isArray(saved.entries)) {
         setTitle(saved.title);
         setEntries(saved.entries.slice(0, 32));
+        setCustomWinners(Array.isArray(saved.winners) ? saved.winners.slice(0, 31) : []);
         if (saved.tournament?.roundNumber) setTournament(saved.tournament);
       }
     } catch {
@@ -766,20 +797,24 @@ function CustomBuilder() {
     }
     const next = createCustomTournament(entries);
     setTournament(next);
+    setCustomWinners([]);
     setMessage("本地赛事已生成 · 不参与官方统计");
-    localStorage.setItem("showdown-custom-v2", JSON.stringify({ title, entries, tournament: next }));
+    localStorage.setItem("showdown-custom-v2", JSON.stringify({ title, entries, tournament: next, winners: [] }));
   }
 
   function pickCustom(winner: string) {
     if (!tournament) return;
     const next = advanceCustomTournament(tournament, winner);
+    const nextWinners = [...customWinners, winner];
     setTournament(next);
-    localStorage.setItem("showdown-custom-v2", JSON.stringify({ title, entries, tournament: next }));
+    setCustomWinners(nextWinners);
+    localStorage.setItem("showdown-custom-v2", JSON.stringify({ title, entries, tournament: next, winners: nextWinners }));
   }
 
   function clearCustom() {
     setEntries([]);
     setTournament(null);
+    setCustomWinners([]);
     setMessage("添加 2–32 个参赛项，即刻开赛");
     localStorage.removeItem("showdown-custom-v2");
   }
@@ -860,7 +895,14 @@ function CustomBuilder() {
           <small>YOUR CUSTOM CHAMPION</small>
           <b aria-hidden="true">♛</b>
           <strong>{tournament.championId}</strong>
-          <span>自定义赛事不参与官方统计</span>
+          <p>自定义赛事不参与官方统计</p>
+          <button
+            type="button"
+            disabled={customWinners.length !== entries.length - 1}
+            onClick={() => onShare(createCustomBracketShareResult(title, entries, customWinners) as CustomBracketShareResult)}
+          >
+            生成分享结果 ↗
+          </button>
         </div>
       )}
 

@@ -14,6 +14,7 @@ test("eight entries start with the first quarterfinal", () => {
   assert.deepEqual(getCurrentMatch(ids, []), {
     finished: false,
     round: "八强赛",
+    stage: "quarterfinal",
     roundNumber: 1,
     matchNumber: 1,
     pair: ["a", "b"],
@@ -24,6 +25,7 @@ test("quarterfinal winners feed the two semifinals", () => {
   assert.deepEqual(getCurrentMatch(ids, ["a", "c", "e", "g"]), {
     finished: false,
     round: "半决赛",
+    stage: "semifinal",
     roundNumber: 2,
     matchNumber: 1,
     pair: ["a", "c"],
@@ -41,6 +43,7 @@ test("32 entries start in the round of 32", () => {
   assert.deepEqual(getCurrentMatch(ids32, []), {
     finished: false,
     round: "32强赛",
+    stage: "opening",
     roundNumber: 1,
     matchNumber: 1,
     pair: ["entry-1", "entry-2"],
@@ -52,10 +55,24 @@ test("16 round-of-32 winners feed the round of 16", () => {
   assert.deepEqual(getCurrentMatch(ids32, firstRoundWinners), {
     finished: false,
     round: "16强赛",
+    stage: "round-of-16",
     roundNumber: 2,
     matchNumber: 1,
     pair: ["entry-1", "entry-3"],
   });
+});
+
+test("later rounds expose distinct visual stages", () => {
+  const expectedStages = [
+    [16, "round-of-16"],
+    [24, "quarterfinal"],
+    [28, "semifinal"],
+    [30, "final"],
+  ];
+
+  for (const [winnerCount, expectedStage] of expectedStages) {
+    assert.equal(getCurrentMatch(ids32, ids32.slice(0, winnerCount)).stage, expectedStage);
+  }
 });
 
 test("31 selections produce the 32-entry champion", () => {

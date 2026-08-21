@@ -46,6 +46,26 @@ test("an unfinished tournament cannot produce a share result", async () => {
   );
 });
 
+test("a completed custom tournament keeps its title and odd-sized bracket in the share URL", async () => {
+  const {
+    buildShareUrl,
+    buildTournamentRounds,
+    createCustomBracketShareResult,
+    readShareResultFromUrl,
+  } = await import("../app/share-results.js");
+  const entries = ["电影", "游戏", "歌曲", "动漫", "旅行"];
+  const winners = ["电影", "歌曲", "电影", "旅行"];
+  const result = createCustomBracketShareResult("周末娱乐对决", entries, winners);
+
+  assert.deepEqual(buildTournamentRounds(entries, winners), [
+    ["电影", "游戏", "歌曲", "动漫", "旅行"],
+    ["电影", "歌曲", "旅行"],
+    ["电影", "旅行"],
+    ["旅行"],
+  ]);
+  assert.deepEqual(readShareResultFromUrl(buildShareUrl("https://example.com/", result)), result);
+});
+
 test("a completed rating keeps its tier order and survives a share URL round trip", async () => {
   const { buildShareUrl, createRatingShareResult, readShareResultFromUrl } = await import("../app/share-results.js");
   const result = createRatingShareResult(
