@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { competitions, type Competition, type Entry } from "./competition-data";
 import musicCatalogData from "./music-catalog.json";
 import { collectPoolEntries, drawCrossPoolEntries, drawHeatBiasedEntries } from "./music-draw.js";
+import { planMobilePageSwitch } from "./mobile-page-scroll.js";
 import { groupEntriesByGroup, groupEntriesByLabel, groupEntriesByMember } from "./roster.js";
 import { drawRatingEntries, placeRatingEntry } from "./song-rating.js";
 import {
@@ -30,6 +31,7 @@ const mobilePages: { id: MobilePageId; label: string }[] = [
   { id: "stats", label: "统计" },
   { id: "custom", label: "创建" },
 ];
+const mobileViewportQuery = "(max-width: 760px)";
 const musicCatalog = musicCatalogData as Record<MusicCompetitionId, MusicPool[]>;
 const defaultMusicEntries = Object.fromEntries(
   (["hiphop", "kpop"] as MusicCompetitionId[]).map((id) => [
@@ -44,11 +46,19 @@ export default function Home() {
   const [submittedChampion, setSubmittedChampion] = useState<string | null>(null);
   const [arena, setArena] = useState<{ id: Competition["id"]; entries: Entry[] }>({ id: "hiphop", entries: defaultMusicEntries.hiphop });
   const [mobilePage, setMobilePage] = useState<MobilePageId>("leagues");
+  const mobileScrollPositions = useRef<Partial<Record<MobilePageId, number>>>({});
+  const pendingMobileScroll = useRef<number | null>(null);
   const baseActive = competitions.find((item) => item.id === activeId) ?? competitions[0];
   const defaultEntries = activeId === "games" ? baseActive.entries : defaultMusicEntries[activeId];
   const active = { ...baseActive, entries: arena.id === activeId ? arena.entries : defaultEntries };
   const totalMatches = active.entries.length - 1;
   const match = getCurrentMatch(active.entries.map((entry) => entry.id), winners);
+
+  useLayoutEffect(() => {
+    if (pendingMobileScroll.current === null) return;
+    window.scrollTo({ top: pendingMobileScroll.current, behavior: "auto" });
+    pendingMobileScroll.current = null;
+  }, [mobilePage]);
 
   useEffect(() => {
     try {
@@ -81,22 +91,36 @@ export default function Home() {
 
   function selectCompetition(id: Competition["id"]) {
     setActiveId(id);
-    setMobilePage("battle");
-    requestAnimationFrame(() => document.querySelector('[data-mobile-page="battle"]')?.scrollIntoView({ behavior: "smooth" }));
+    openMobilePage("battle");
+    scrollToBattleOnDesktop();
   }
 
   function openMobilePage(pageId: MobilePageId) {
+    if (!window.matchMedia(mobileViewportQuery).matches) {
+      setMobilePage(pageId);
+      return;
+    }
+
+    const next = planMobilePageSwitch(mobilePage, pageId, window.scrollY, mobileScrollPositions.current);
+    if (!next.changed) return;
+
+    mobileScrollPositions.current = next.positions;
+    pendingMobileScroll.current = next.targetScrollY;
     setMobilePage(pageId);
-    requestAnimationFrame(() => document.querySelector(`[data-mobile-page="${pageId}"]`)?.scrollIntoView({ behavior: "auto" }));
+  }
+
+  function scrollToBattleOnDesktop() {
+    if (window.matchMedia(mobileViewportQuery).matches) return;
+    requestAnimationFrame(() => document.querySelector("#battle")?.scrollIntoView({ behavior: "smooth" }));
   }
 
   function resetShowdown() {
     setWinners([]);
     setSubmittedChampion(null);
-    setMobilePage("battle");
+    openMobilePage("battle");
     localStorage.removeItem(progressKey(activeId));
     localStorage.removeItem(championKey(activeId));
-    document.querySelector("#battle")?.scrollIntoView({ behavior: "smooth" });
+    scrollToBattleOnDesktop();
   }
 
   function startMusicDraw(entries: Entry[]) {
@@ -106,7 +130,7 @@ export default function Home() {
     localStorage.setItem(bracketKey(activeId), JSON.stringify(entries.map((entry) => entry.id)));
     localStorage.removeItem(progressKey(activeId));
     localStorage.removeItem(championKey(activeId));
-    requestAnimationFrame(() => document.querySelector("#battle")?.scrollIntoView({ behavior: "smooth" }));
+    scrollToBattleOnDesktop();
   }
 
   const pair = !match.finished
