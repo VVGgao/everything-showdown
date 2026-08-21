@@ -4,9 +4,9 @@
 
 这是一个 **Vibecoding 项目**：产品构思、界面设计、功能开发、内容整理、测试与部署均通过自然语言协作持续迭代完成。
 
-**在线体验：** [everything-showdown.vercel.app](https://everything-showdown.vercel.app/)
+**在线体验：** [everythingshowdown.site](https://everythingshowdown.site/)
 
-**备用地址：** [wanwu-showdown-2026.wayne-vvg-gao.chatgpt.site](https://wanwu-showdown-2026.wayne-vvg-gao.chatgpt.site)
+**备用地址：** [everything-showdown.vercel.app](https://everything-showdown.vercel.app/)
 
 ## 最新更新
 
