@@ -1,12 +1,20 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import QRCode from "qrcode";
 import { competitions, type Competition, type Entry } from "./competition-data";
 import musicCatalogData from "./music-catalog.json";
 import { collectPoolEntries, drawCrossPoolEntries, drawHeatBiasedEntries } from "./music-draw.js";
 import { planMobilePageSwitch } from "./mobile-page-scroll.js";
 import { groupEntriesByGroup, groupEntriesByLabel, groupEntriesByMember } from "./roster.js";
 import { drawRatingEntries, placeRatingEntry } from "./song-rating.js";
+import {
+  buildShareUrl,
+  buildTournamentRounds,
+  createBracketShareResult,
+  createRatingShareResult,
+  readShareResultFromUrl,
+} from "./share-results.js";
 import {
   advanceCustomTournament,
   createCustomTournament,
@@ -22,6 +30,9 @@ const coverSrc = (competitionId: Competition["id"], entry: Entry) => entry.cover
 
 type MusicCompetitionId = "hiphop" | "kpop";
 type MusicPool = { id: string; name: string; label: string; entries: Entry[] };
+type BracketShareResult = { version: 1; type: "bracket"; competitionId: Competition["id"]; entryIds: string[]; winners: string[] };
+type RatingShareResult = { version: 1; type: "rating"; competitionId: Competition["id"]; items: [string, string][] };
+type ShareResult = BracketShareResult | RatingShareResult;
 type MobilePageId = "leagues" | "battle" | "path" | "rating" | "stats" | "custom";
 const mobilePages: { id: MobilePageId; label: string }[] = [
   { id: "leagues", label: "赛区" },
@@ -46,6 +57,7 @@ export default function Home() {
   const [submittedChampion, setSubmittedChampion] = useState<string | null>(null);
   const [arena, setArena] = useState<{ id: Competition["id"]; entries: Entry[] }>({ id: "hiphop", entries: defaultMusicEntries.hiphop });
   const [mobilePage, setMobilePage] = useState<MobilePageId>("leagues");
+  const [shareResult, setShareResult] = useState<ShareResult | null>(null);
   const mobileScrollPositions = useRef<Partial<Record<MobilePageId, number>>>({});
   const pendingMobileScroll = useRef<number | null>(null);
   const baseActive = competitions.find((item) => item.id === activeId) ?? competitions[0];
@@ -59,6 +71,18 @@ export default function Home() {
     window.scrollTo({ top: pendingMobileScroll.current, behavior: "auto" });
     pendingMobileScroll.current = null;
   }, [mobilePage]);
+
+  useEffect(() => {
+    function syncShareResult() {
+      const result = readShareResultFromUrl(window.location.href) as ShareResult | null;
+      setShareResult(result);
+      if (result) setActiveId(result.competitionId);
+    }
+
+    syncShareResult();
+    window.addEventListener("popstate", syncShareResult);
+    return () => window.removeEventListener("popstate", syncShareResult);
+  }, []);
 
   useEffect(() => {
     try {
@@ -138,12 +162,30 @@ export default function Home() {
     scrollToBattleStage();
   }
 
+  function openShareResult(result: ShareResult) {
+    const shareUrl = buildShareUrl(window.location.href, result);
+    window.history.pushState({}, "", shareUrl);
+    setShareResult(result);
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }
+
+  function closeShareResult() {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("share");
+    window.history.replaceState({}, "", url);
+    setShareResult(null);
+  }
+
   const pair = !match.finished
     ? match.pair.map((id) => active.entries.find((entry) => entry.id === id)!)
     : null;
   const champion = match.finished
     ? active.entries.find((entry) => entry.id === match.championId) ?? null
     : null;
+
+  if (shareResult) {
+    return <ShareResultView result={shareResult} onClose={closeShareResult} />;
+  }
 
   return (
     <main className={`site-shell theme-${active.theme}`}>
@@ -237,11 +279,14 @@ export default function Home() {
               <span className="champion-crown">♛</span>
               <strong>{champion.title}</strong>
               <p>{champion.subtitle}</p>
-              <div>
+              <div className="champion-stat">
                 <b>{(champion.champions + (submittedChampion === champion.id ? 1 : 0)).toLocaleString("zh-CN")}</b>
                 <span>位玩家也把 TA 选为冠军</span>
               </div>
-              <button type="button" onClick={resetShowdown}>重新开赛 ↺</button>
+              <div className="champion-actions">
+                <button type="button" onClick={() => openShareResult(createBracketShareResult(active.id, active.entries.map((entry) => entry.id), winners) as BracketShareResult)}>生成分享结果 ↗</button>
+                <button type="button" onClick={resetShowdown}>重新开赛 ↺</button>
+              </div>
             </div>
           )}
         </div>
@@ -261,7 +306,7 @@ export default function Home() {
 
       <div className={`mobile-page ${mobilePage === "rating" ? "active" : ""}`} data-mobile-page="rating">
         {active.id !== "games"
-          ? <SongRatingBoard active={active} key={`${active.id}:${active.entries.map((entry) => entry.id).join(".")}`} />
+          ? <SongRatingBoard active={active} onShare={(result) => openShareResult(result)} key={`${active.id}:${active.entries.map((entry) => entry.id).join(".")}`} />
           : <section className="mobile-empty"><b>锐评</b><h2>歌曲锐评仅在音乐赛区开放</h2><button type="button" onClick={() => openMobilePage("leagues")}>返回选择音乐赛区</button></section>}
       </div>
 
@@ -299,6 +344,138 @@ export default function Home() {
         ))}
       </nav>
     </main>
+  );
+}
+
+function ShareResultView({ result, onClose }: { result: ShareResult; onClose: () => void }) {
+  const competition = competitions.find((item) => item.id === result.competitionId) ?? competitions[0];
+  const availableEntries = competition.id === "games"
+    ? competition.entries
+    : musicCatalog[competition.id].flatMap((pool) => pool.entries);
+  const entriesById = new Map(availableEntries.map((entry) => [entry.id, entry]));
+  const shareUrl = buildShareUrl(window.location.href, result);
+  const [qrCode, setQrCode] = useState("");
+  const [shareStatus, setShareStatus] = useState("");
+
+  useEffect(() => {
+    if (!shareUrl) return;
+    QRCode.toDataURL(shareUrl, { width: 260, margin: 1, errorCorrectionLevel: "L", color: { dark: "#090909", light: "#f4f0e7" } })
+      .then(setQrCode)
+      .catch(() => setQrCode(""));
+  }, [shareUrl]);
+
+  async function copyShareUrl() {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setShareStatus("链接已复制");
+    } catch {
+      setShareStatus("长按下方链接即可复制");
+    }
+  }
+
+  async function shareFromDevice() {
+    if (!navigator.share) {
+      await copyShareUrl();
+      return;
+    }
+    try {
+      await navigator.share({
+        title: result.type === "bracket" ? `${competition.shortName} · 我的冠军结果` : `${competition.shortName} · 我的锐评结果`,
+        text: "看看我的万物对决结果，你会怎么选？",
+        url: shareUrl,
+      });
+    } catch (error) {
+      if (!(error instanceof DOMException) || error.name !== "AbortError") setShareStatus("系统分享不可用，请复制链接");
+    }
+  }
+
+  return (
+    <main className={`share-page theme-${competition.theme}`}>
+      <header className="share-topbar">
+        <div className="brand"><span className="brand-mark">决</span><span>SHOWDOWN<br /><strong>结果分享</strong></span></div>
+        <button type="button" onClick={onClose}>返回赛场 ×</button>
+      </header>
+
+      <section className="share-result-shell">
+        <header className="share-result-heading">
+          <div><p>{competition.eyebrow} · SHARE RESULT</p><h1>{result.type === "bracket" ? "我的冠军之路" : "我的锐评榜单"}</h1></div>
+          <span>{result.type === "bracket" ? "完整晋级树" : "从夯到拉 · 10 首定档"}</span>
+        </header>
+
+        {result.type === "bracket"
+          ? <SharedBracket result={result} entriesById={entriesById} competition={competition} />
+          : <SharedRating result={result} entriesById={entriesById} competition={competition} />}
+
+        <aside className="share-kit" aria-label="分享结果">
+          <div className="share-qr">
+            {qrCode ? <img src={qrCode} alt="此结果分享网址的二维码" /> : <span>正在生成二维码…</span>}
+          </div>
+          <div className="share-copy">
+            <p>让朋友扫码，或直接把链接发给 TA</p>
+            <strong>同一结果，手机和电脑都能查看</strong>
+            <input aria-label="结果分享网址" value={shareUrl} readOnly onFocus={(event) => event.currentTarget.select()} />
+            <div>
+              <button type="button" disabled={!shareUrl} onClick={shareFromDevice}>系统分享 ↗</button>
+              <button type="button" disabled={!shareUrl} onClick={copyShareUrl}>复制链接</button>
+            </div>
+            <small aria-live="polite">{shareStatus || "结果只保存在网址中，不会上传个人信息"}</small>
+          </div>
+        </aside>
+      </section>
+    </main>
+  );
+}
+
+function SharedBracket({ result, entriesById, competition }: { result: BracketShareResult; entriesById: Map<string, Entry>; competition: Competition }) {
+  const rounds = buildTournamentRounds(result.entryIds, result.winners) as string[][];
+  const champion = entriesById.get(result.winners.at(-1) ?? "");
+  const treeHeight = Math.max(720, result.entryIds.length * 42);
+
+  return (
+    <div className="shared-bracket-card">
+      {champion && (
+        <header className="shared-champion">
+          <img src={coverSrc(competition.id, champion)} alt={`${champion.title} 封面`} />
+          <div><span>MY CHAMPION</span><h2>{champion.title}</h2><p>{champion.subtitle}</p></div>
+          <b>♛</b>
+        </header>
+      )}
+      <div className="share-tree-viewport" aria-label="完整晋级树，可横向和纵向滚动查看">
+        <div className="share-tree" style={{ height: treeHeight }}>
+          {rounds.map((round, roundIndex) => (
+            <section className={`share-round ${round.length === 1 ? "final" : ""}`} key={roundIndex}>
+              <header><span>ROUND {roundIndex + 1}</span><b>{round.length === 1 ? "冠军" : `${round.length} 强`}</b></header>
+              <div className="share-round-list" style={{ gridTemplateRows: `repeat(${round.length}, minmax(34px, 1fr))` }}>
+                {round.map((entryId, index) => {
+                  const entry = entriesById.get(entryId);
+                  return <div className="share-tree-node" title={entry?.title} key={`${entryId}-${index}`}><strong>{entry?.title ?? "未知参赛项"}</strong><span>{entry?.subtitle}</span></div>;
+                })}
+              </div>
+            </section>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SharedRating({ result, entriesById, competition }: { result: RatingShareResult; entriesById: Map<string, Entry>; competition: Competition }) {
+  return (
+    <div className="shared-rating-card">
+      {ratingTiers.slice(1).map((tier, tierIndex) => {
+        const tierEntries = result.items.filter(([, tierId]) => tierId === tier.id).map(([entryId]) => entriesById.get(entryId)).filter((entry): entry is Entry => Boolean(entry));
+        return (
+          <section className={`shared-rating-row tier-${tier.id}`} key={tier.id}>
+            <header><b>{(tierIndex + 1).toString().padStart(2, "0")}</b><strong>{tier.label}</strong><span>{tier.note}</span></header>
+            <div>
+              {tierEntries.length ? tierEntries.map((entry) => (
+                <article key={entry.id}><img src={coverSrc(competition.id, entry)} alt="" /><div><strong>{entry.title}</strong><span>{entry.subtitle}</span></div></article>
+              )) : <small>本档暂无歌曲</small>}
+            </div>
+          </section>
+        );
+      })}
+    </div>
   );
 }
 
@@ -464,7 +641,7 @@ const ratingTiers = [
 
 type RatingTierId = typeof ratingTiers[number]["id"];
 
-function SongRatingBoard({ active }: { active: Competition }) {
+function SongRatingBoard({ active, onShare }: { active: Competition; onShare: (result: RatingShareResult) => void }) {
   const initialSongs = () => drawRatingEntries(active.entries, 10, () => 0.5) as Entry[];
   const [songs, setSongs] = useState<Entry[]>(initialSongs);
   const [placements, setPlacements] = useState<Record<string, RatingTierId>>(
@@ -481,6 +658,8 @@ function SongRatingBoard({ active }: { active: Competition }) {
     if (!songs.some((entry) => entry.id === entryId)) return;
     setPlacements((current) => placeRatingEntry(current, entryId, tierId));
   }
+
+  const ratedCount = songs.filter((entry) => placements[entry.id] !== "unrated").length;
 
   return (
     <section className="rating-section" aria-labelledby="rating-title">
@@ -533,7 +712,10 @@ function SongRatingBoard({ active }: { active: Competition }) {
           );
         })}
       </div>
-      <p className="rating-status" aria-live="polite">已评价 {songs.filter((entry) => placements[entry.id] !== "unrated").length} / 10 首</p>
+      <div className="rating-result-actions">
+        <p className="rating-status" aria-live="polite">已评价 {ratedCount} / 10 首</p>
+        {ratedCount === songs.length && <button type="button" onClick={() => onShare(createRatingShareResult(active.id, songs.map((entry) => entry.id), placements) as RatingShareResult)}>生成锐评分享页 ↗</button>}
+      </div>
     </section>
   );
 }
